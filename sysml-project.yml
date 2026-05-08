@@ -1,0 +1,26 @@
+# =============================================================================
+# sysml-project.yml — SysML v2 project manifest
+#
+# This file is the single place that declares which .sysml files exist in this
+# project and the order in which they must be executed/committed.
+#
+# The CI/CD pipeline (validate-pr.yml, publish-to-api.yml) and commit.sh all
+# read this file. To adapt this infrastructure for a new SysML v2 project:
+#   1. Change 'name' and 'description'
+#   2. Replace the 'layers' list with your own .sysml files in dependency order
+#      (definitions before usages — e.g. library types before architecture)
+#
+# Rules for 'layers':
+#   - List files in strict import order (imported-by-nothing first)
+#   - Use only flat filenames (no subdirectory paths)
+#   - Each file must be at the repository root
+# =============================================================================
+
+name: BilgePumpSystem
+description: "SysML v2 bilge pump verification — IMO MARPOL, DNV, IEC 60945, SOLAS"
+
+layers:
+  - bilgepump/Library.sysml
+  - bilgepump/Architecture.sysml
+  - bilgepump/Requirements.sysml
+  - bilgepump/Analysis.sysml

@@ -1,0 +1,16 @@
+# =============================================================================
+# requirements-ci.txt — CI-only Python dependencies
+#
+# These are NOT needed for local development (setup.sh / requirements.txt).
+# They are installed by the GitHub Actions validate-pr.yml workflow to drive
+# the headless SysML v2 kernel via scripts/ci_kernel_validate.py.
+#
+# In CI, nbformat and nbclient are installed via conda alongside the kernel:
+#   conda install -c conda-forge jupyter-sysml-kernel=0.58.0 nbclient nbformat
+#
+# This file is the pip-equivalent record for environments where conda is
+# not available (e.g. debugging on a bare Python virtualenv).
+# =============================================================================
+
+nbformat>=5.9
+nbclient>=0.10

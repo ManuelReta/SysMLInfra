@@ -1,0 +1,21 @@
+# =============================================================================
+# .gitignore — SysML v2 infrastructure repository
+# =============================================================================
+
+# Runtime state written by commit.sh / verify.sh — never committed.
+# Developers download lib/commit-ids.json from the Actions artifact after
+# a successful publish-to-api.yml run.
+lib/
+
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# Jupyter checkpoint directories (auto-created by Jupyter when saving)
+.ipynb_checkpoints/
+
+# OS / editor noise
+.DS_Store
+*.swp
+*.swo

@@ -1,0 +1,7 @@
+# SysML v2 Bilge Pump System — Python dependencies
+# These are the only Python packages needed.
+# The SysML v2 model engine is the Java-based Pilot API server (see setup.sh).
+# No virtual environment is required; install globally or in any active env.
+
+jupyter>=1.0.0
+requests>=2.28.0
