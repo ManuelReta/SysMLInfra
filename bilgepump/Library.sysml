@@ -318,3 +318,4 @@ package 'BilgePump::Library' {
     }
 
 }
+// CI proof-of-concept trigger — Fri May  8 08:15:31 CEST 2026
