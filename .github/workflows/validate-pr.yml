@@ -49,7 +49,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Verify manifest and layer files (dry run)
         run: python3 scripts/ci_kernel_validate.py --dry-run
@@ -71,7 +71,7 @@ jobs:
       # 1. Check out the PR branch
       # -----------------------------------------------------------------------
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # -----------------------------------------------------------------------
       # 2. Java 21 — required by the SysML v2 kernel JAR (same requirement
@@ -119,7 +119,16 @@ jobs:
             "nbformat>=5.9"
 
       # -----------------------------------------------------------------------
-      # 5. Validate: run ci_kernel_validate.py against the PR branch model.
+      # 5. List registered Jupyter kernels so the exact name is visible in
+      #    the CI log. The SysML v2 kernel may register as 'sysml2', 'sysml',
+      #    or another name depending on the package version.
+      # -----------------------------------------------------------------------
+      - name: List installed Jupyter kernels
+        shell: bash -el {0}
+        run: jupyter kernelspec list
+
+      # -----------------------------------------------------------------------
+      # 6. Validate: run ci_kernel_validate.py against the PR branch model.
       #
       #    The script reads sysml-project.yml to determine the layer order,
       #    builds an in-memory notebook, executes all cells against the sysml2

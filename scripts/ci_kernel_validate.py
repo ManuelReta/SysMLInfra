@@ -122,15 +122,47 @@ def validate(name: str, layers: list) -> None:
     print(f"Layers ({len(layers)}): {', '.join(layers)}\n")
 
     # ------------------------------------------------------------------
-    # Build an in-memory notebook — one code cell per layer file.
-    # No notebook file is written to disk; this keeps the working tree
-    # clean and avoids accidental commits of generated artefacts.
+    # Discover the SysML v2 kernel name.
+    #
+    # The jupyter-sysml-kernel package registers itself under a name that
+    # may vary by version: 'sysml2', 'sysml', or another variation.
+    # We search all installed kernelspecs for one whose display name or
+    # key contains 'sysml'. This avoids hardcoding 'sysml2' and breaking
+    # when the kernel package uses a different registration name.
     # ------------------------------------------------------------------
+    try:
+        import jupyter_client  # noqa: PLC0415
+        installed_kernels = jupyter_client.kernelspec.find_kernel_specs()
+    except Exception:
+        installed_kernels = {}
+
+    kernel_name = None
+    # Prefer exact matches: 'sysml2' first, then 'sysml', then any sysml* key
+    for candidate in ("sysml2", "sysml"):
+        if candidate in installed_kernels:
+            kernel_name = candidate
+            break
+    if kernel_name is None:
+        for k in installed_kernels:
+            if "sysml" in k.lower():
+                kernel_name = k
+                break
+    if kernel_name is None:
+        print(
+            f"ERROR: No SysML v2 kernel found.\n"
+            f"Installed kernels: {list(installed_kernels.keys())}\n\n"
+            "Install with:  conda install -c conda-forge jupyter-sysml-kernel",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    print(f"Using kernel: {kernel_name}  (from {list(installed_kernels.keys())})")
+
     nb = nbformat.v4.new_notebook()
     nb.metadata["kernelspec"] = {
         "display_name": "SysML v2",
         "language": "sysml",
-        "name": "sysml2",
+        "name": kernel_name,
     }
     for layer_file in layers:
         with open(os.path.join(REPO_ROOT, layer_file)) as fh:
@@ -149,13 +181,12 @@ def validate(name: str, layers: list) -> None:
     #   5. Shuts the kernel down cleanly on exit
     #
     # timeout=300: generous for kernel JVM startup on a cold CI runner.
-    # kernel_name="sysml2": must match the registered kernel name from
-    #   `conda install -c conda-forge jupyter-sysml-kernel`.
+    # kernel_name: auto-discovered from installed kernelspecs at runtime.
     # ------------------------------------------------------------------
     client = NotebookClient(
         nb,
         timeout=300,
-        kernel_name="sysml2",
+        kernel_name=kernel_name,
         resources={"metadata": {"path": REPO_ROOT}},
     )
 

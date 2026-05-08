@@ -43,7 +43,7 @@ jobs:
       # 1. Check out main (the just-merged, validated model)
       # -----------------------------------------------------------------------
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # -----------------------------------------------------------------------
       # 2. Python — only 'requests' is needed here; no kernel, no conda.
