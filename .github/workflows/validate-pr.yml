@@ -96,9 +96,10 @@ jobs:
         uses: conda-incubator/setup-miniconda@v3
         with:
           python-version: "3.11"
-          auto-activate-base: true
+          auto-activate: true
+          activate-environment: base
           auto-update-conda: false
-          miniforge-variant: Mambaforge
+          miniforge-variant: Miniforge3
 
       # -----------------------------------------------------------------------
       # 4. Install SysML v2 kernel + CI execution dependencies in one step.
