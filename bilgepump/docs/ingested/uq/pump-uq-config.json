@@ -1,0 +1,212 @@
+{
+  "_meta": {
+    "source_tool": "Custom UQ Pre-processor (scipy / numpy)",
+    "export_format": "UQ Configuration JSON v1.0",
+    "system": "Bilge Pump System",
+    "document_id": "UQ-BPS-001",
+    "revision": "1.0",
+    "date": "2026-05-13",
+    "description": "Parametric uncertainty quantification configuration for the bilge pump discharge capacity. Defines uncertainty distributions for three key physical parameters and generates N=10 deterministic sweep points for evaluation against DischargeCapacityRequirement.",
+    "method": "Symmetric sigma-step sweep (±1σ, ±2σ, ±3σ per variable)",
+    "rationale": "Deterministic parametric sweep is compatible with the SysML v2 Pilot API parametric evaluator, which does not support stochastic sampling natively. Each sweep point is one independent analysis def with exact numeric bindings.",
+    "note": "Not a Latin Hypercube or Monte Carlo — all off-diagonal interactions are evaluated only at mean. Extend to full 3^3 = 27-point factorial design in a future iteration if interaction effects are suspected significant."
+  },
+  "uncertain_parameters": [
+    {
+      "id": "UP-1",
+      "name": "pumpA_flowRate",
+      "sysml_path": "sys.pumpA.flowRate",
+      "distribution": "Normal",
+      "mean": 0.025,
+      "sigma": 0.002,
+      "lower_3sigma": 0.019,
+      "upper_3sigma": 0.031,
+      "unit": "m³/s",
+      "source": "CFD pump curve test uncertainty (3σ from 12-point repeatability study)",
+      "source_doc": "CFD-PUMP-001",
+      "section": "5.1"
+    },
+    {
+      "id": "UP-2",
+      "name": "hydraulic_efficiency",
+      "sysml_path": "sys.pumpA.efficiency",
+      "distribution": "Normal",
+      "mean": 0.82,
+      "sigma": 0.03,
+      "lower_3sigma": 0.73,
+      "upper_3sigma": 0.91,
+      "unit": "dimensionless",
+      "source": "Vendor pump test certificate uncertainty (9 test points, ±3σ envelope)",
+      "source_doc": "CFD-PUMP-001",
+      "section": "5.2"
+    },
+    {
+      "id": "UP-3",
+      "name": "pipe_loss_factor",
+      "sysml_path": "sys.discharge.pipeLossFactor",
+      "distribution": "Normal",
+      "mean": 0.05,
+      "sigma": 0.008,
+      "lower_3sigma": 0.026,
+      "upper_3sigma": 0.074,
+      "unit": "dimensionless",
+      "source": "Darcy-Weisbach friction factor uncertainty from pipe roughness measurement (Moody chart tolerance)",
+      "source_doc": "CALC-HYD-001",
+      "section": "4.1"
+    }
+  ],
+  "fixed_parameters": [
+    { "sysml_path": "sys.pumpB.flowRate",          "value": 0.025,  "unit": "m³/s", "note": "Held at mean — Pump B identical to A by design" },
+    { "sysml_path": "sys.sensor.waterLevel",        "value": 0.15,   "unit": "m" },
+    { "sysml_path": "sys.pumpB.isRedundant",        "value": true,   "unit": "" },
+    { "sysml_path": "sys.alarm.activationDelay_s",  "value": 0.5,    "unit": "s" },
+    { "sysml_path": "sys.pumpB.efficiency",         "value": 0.82,   "unit": "" },
+    { "sysml_path": "designInflow",                 "value": 0.030,  "unit": "m³/s" }
+  ],
+  "sweep_points": [
+    {
+      "id": "UQ_Sweep_01",
+      "description": "pumpA flowRate -1σ (low side)",
+      "varied_param": "UP-1",
+      "sigma_step": -1,
+      "bindings": {
+        "sys.pumpA.flowRate":          0.023,
+        "sys.pumpA.efficiency":        0.82,
+        "sys.discharge.pipeLossFactor":0.05
+      },
+      "q_net_predicted": 0.0348,
+      "expected_result": "DischargeCapacityRequirement_SATISFIED",
+      "note": "Q_net = (0.023+0.025)*0.82*(1-0.05) = 0.0374 ≥ 0.030 SATISFIED"
+    },
+    {
+      "id": "UQ_Sweep_02",
+      "description": "pumpA flowRate +1σ (high side)",
+      "varied_param": "UP-1",
+      "sigma_step": +1,
+      "bindings": {
+        "sys.pumpA.flowRate":          0.027,
+        "sys.pumpA.efficiency":        0.82,
+        "sys.discharge.pipeLossFactor":0.05
+      },
+      "q_net_predicted": 0.0404,
+      "expected_result": "DischargeCapacityRequirement_SATISFIED"
+    },
+    {
+      "id": "UQ_Sweep_03",
+      "description": "pumpA flowRate -3σ (worst-case low)",
+      "varied_param": "UP-1",
+      "sigma_step": -3,
+      "bindings": {
+        "sys.pumpA.flowRate":          0.019,
+        "sys.pumpA.efficiency":        0.82,
+        "sys.discharge.pipeLossFactor":0.05
+      },
+      "q_net_predicted": 0.0343,
+      "expected_result": "DischargeCapacityRequirement_SATISFIED",
+      "note": "Q_net = (0.019+0.025)*0.82*(1-0.05) = 0.0343 ≥ 0.030 SATISFIED — design margin holds at 3σ"
+    },
+    {
+      "id": "UQ_Sweep_04",
+      "description": "hydraulic efficiency -1σ",
+      "varied_param": "UP-2",
+      "sigma_step": -1,
+      "bindings": {
+        "sys.pumpA.flowRate":          0.025,
+        "sys.pumpA.efficiency":        0.79,
+        "sys.discharge.pipeLossFactor":0.05
+      },
+      "q_net_predicted": 0.0375,
+      "expected_result": "DischargeCapacityRequirement_SATISFIED"
+    },
+    {
+      "id": "UQ_Sweep_05",
+      "description": "hydraulic efficiency +1σ",
+      "varied_param": "UP-2",
+      "sigma_step": +1,
+      "bindings": {
+        "sys.pumpA.flowRate":          0.025,
+        "sys.pumpA.efficiency":        0.85,
+        "sys.discharge.pipeLossFactor":0.05
+      },
+      "q_net_predicted": 0.0404,
+      "expected_result": "DischargeCapacityRequirement_SATISFIED"
+    },
+    {
+      "id": "UQ_Sweep_06",
+      "description": "hydraulic efficiency -3σ (worst-case low)",
+      "varied_param": "UP-2",
+      "sigma_step": -3,
+      "bindings": {
+        "sys.pumpA.flowRate":          0.025,
+        "sys.pumpA.efficiency":        0.73,
+        "sys.discharge.pipeLossFactor":0.05
+      },
+      "q_net_predicted": 0.0347,
+      "expected_result": "DischargeCapacityRequirement_SATISFIED",
+      "note": "Q_net = (0.025+0.025)*0.73*(1-0.05) = 0.0347 ≥ 0.030 SATISFIED"
+    },
+    {
+      "id": "UQ_Sweep_07",
+      "description": "pipe loss factor +1σ (higher losses)",
+      "varied_param": "UP-3",
+      "sigma_step": +1,
+      "bindings": {
+        "sys.pumpA.flowRate":          0.025,
+        "sys.pumpA.efficiency":        0.82,
+        "sys.discharge.pipeLossFactor":0.058
+      },
+      "q_net_predicted": 0.0383,
+      "expected_result": "DischargeCapacityRequirement_SATISFIED"
+    },
+    {
+      "id": "UQ_Sweep_08",
+      "description": "pipe loss factor +3σ (worst-case high losses)",
+      "varied_param": "UP-3",
+      "sigma_step": +3,
+      "bindings": {
+        "sys.pumpA.flowRate":          0.025,
+        "sys.pumpA.efficiency":        0.82,
+        "sys.discharge.pipeLossFactor":0.074
+      },
+      "q_net_predicted": 0.0380,
+      "expected_result": "DischargeCapacityRequirement_SATISFIED",
+      "note": "Q_net = (0.025+0.025)*0.82*(1-0.074) = 0.0380 ≥ 0.030 SATISFIED"
+    },
+    {
+      "id": "UQ_Sweep_09",
+      "description": "Combined worst-case low: flowRate -3σ AND efficiency -3σ",
+      "varied_param": "COMBINED",
+      "sigma_step": -3,
+      "bindings": {
+        "sys.pumpA.flowRate":          0.019,
+        "sys.pumpA.efficiency":        0.73,
+        "sys.discharge.pipeLossFactor":0.05
+      },
+      "q_net_predicted": 0.0305,
+      "expected_result": "DischargeCapacityRequirement_SATISFIED",
+      "note": "Q_net = (0.019+0.025)*0.73*(1-0.05) = 0.0305 ≥ 0.030 MARGINAL — passes by 1.7%"
+    },
+    {
+      "id": "UQ_Sweep_10",
+      "description": "Combined extreme worst-case: flowRate -3σ AND efficiency -3σ AND pipe loss +3σ",
+      "varied_param": "COMBINED_EXTREME",
+      "sigma_step": -3,
+      "bindings": {
+        "sys.pumpA.flowRate":          0.019,
+        "sys.pumpA.efficiency":        0.73,
+        "sys.discharge.pipeLossFactor":0.074
+      },
+      "q_net_predicted": 0.0282,
+      "expected_result": "DischargeCapacityRequirement_VIOLATED",
+      "note": "Q_net = (0.019+0.025)*0.73*(1-0.074) = 0.0298 — VIOLATED by 6.7%. This is the 3σ combined worst case. Design change or safety margin increase required if all three parameters simultaneously at 3σ extreme is considered credible."
+    }
+  ],
+  "summary": {
+    "total_sweep_points": 10,
+    "expected_satisfied": 9,
+    "expected_violated": 1,
+    "violated_scenario": "UQ_Sweep_10 (combined 3σ extreme)",
+    "safety_margin_nominal": "29.7% above DischargeCapacityRequirement at nominal values",
+    "recommendation": "Design is robust at individual 3σ deviations. Combined 3σ extreme (all three parameters simultaneously) is the only violation scenario. Engineering action: review whether 3σ simultaneous deviation is credible given independent failure modes, or add 10% flow reserve margin."
+  }
+}

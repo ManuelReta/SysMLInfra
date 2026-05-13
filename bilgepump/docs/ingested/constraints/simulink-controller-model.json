@@ -1,0 +1,46 @@
+{
+  "_meta": {
+    "source_tool": "MATLAB/Simulink R2025b — Stateflow discrete-event model",
+    "export_format": "Simulink Model Report JSON (custom postprocess script)",
+    "system": "Bilge Pump System — PumpController firmware model",
+    "document_id": "SIM-CTRL-001",
+    "revision": "1.1",
+    "date": "2026-05-13",
+    "description": "Controller response time and failover timing data extracted from Simulink discrete-event simulation. Provides numeric bounds for controller timing constraints: nominal response, maximum tolerated delay, and failover switch time."
+  },
+  "constraints": [
+    {
+      "name": "ControllerResponseTimeConstraint",
+      "description": "Pump activation command must be issued within the designed response window after water level crosses triggerLevel_m. Derived from Simulink discrete-event timing analysis.",
+      "equation": "responseTime_s <= maxResponseTime_s",
+      "parameters": [
+        { "name": "responseTime_s",    "role": "input",  "type": "Real", "unit": "s", "description": "Actual controller response time (sampling + processing + output latency)" },
+        { "name": "maxResponseTime_s", "role": "input",  "type": "Real", "unit": "s", "description": "Maximum allowed response time before safety constraint is violated" }
+      ],
+      "simulink_scenarios": [
+        { "scenario": "Nominal",         "responseTime_s": 1.0,  "maxResponseTime_s": 5.0, "result": "PASS", "notes": "100 ms sample interval + 900 ms processing + output latency" },
+        { "scenario": "High CPU load",   "responseTime_s": 2.8,  "maxResponseTime_s": 5.0, "result": "PASS", "notes": "Background diagnostics running — tested via Simulink load injection" },
+        { "scenario": "Watchdog recovery","responseTime_s": 4.9, "maxResponseTime_s": 5.0, "result": "PASS", "notes": "Watchdog reset adds ~3.9 s — marginal; hardware watchdog recommended" },
+        { "scenario": "Software hang",   "responseTime_s": 9999.0,"maxResponseTime_s":5.0, "result": "FAIL", "notes": "Fault injection scenario — FMEA FM-C-001" }
+      ],
+      "source_doc": "SIM-CTRL-001",
+      "section": "3.1"
+    },
+    {
+      "name": "FailoverSwitchTimeConstraint",
+      "description": "Time from Pump A fault detection to Pump B activation command must be within the failover window.",
+      "equation": "failoverTime_s <= maxFailoverTime_s",
+      "parameters": [
+        { "name": "failoverTime_s",    "role": "input", "type": "Real", "unit": "s", "description": "Time from fault detection to Pump B command issued" },
+        { "name": "maxFailoverTime_s", "role": "input", "type": "Real", "unit": "s", "description": "Maximum allowed failover time (design requirement)" }
+      ],
+      "simulink_scenarios": [
+        { "scenario": "Normal failover",   "failoverTime_s": 0.8, "maxFailoverTime_s": 3.0, "result": "PASS" },
+        { "scenario": "Delayed detection", "failoverTime_s": 2.7, "maxFailoverTime_s": 3.0, "result": "PASS", "notes": "Detection latency if power-based health monitor only (no flow sensor)" },
+        { "scenario": "No failover",       "failoverTime_s": 9999.0,"maxFailoverTime_s":3.0,"result": "FAIL", "notes": "FMEA FM-C-003; UCA-004 scenario" }
+      ],
+      "source_doc": "SIM-CTRL-001",
+      "section": "3.2"
+    }
+  ]
+}

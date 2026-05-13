@@ -1,0 +1,109 @@
+{
+  "_meta": {
+    "source_tool": "XSTAMPP 2.0 (STPA Workbench)",
+    "export_format": "XSTAMPP JSON v2.1 — UCA Table",
+    "system": "Bilge Pump System",
+    "document_id": "STPA-BPS-002",
+    "revision": "1.0",
+    "date": "2026-05-13",
+    "description": "Unsafe Control Actions identified by applying STPA guidewords to each controller output and sensor feedback path"
+  },
+  "control_actions": [
+    {
+      "id": "CA-001",
+      "controller": "PumpController",
+      "action": "ActivatePumpA",
+      "control_path": "controller.pumpAControl → pumpA.controlIn"
+    },
+    {
+      "id": "CA-002",
+      "controller": "PumpController",
+      "action": "ActivatePumpB",
+      "control_path": "controller.pumpBControl → pumpB.controlIn"
+    },
+    {
+      "id": "CA-003",
+      "controller": "PumpController",
+      "action": "TriggerAlarm",
+      "control_path": "controller.alarmOut → alarm.alarmIn"
+    },
+    {
+      "id": "CA-004",
+      "controller": "BilgeWaterSensor",
+      "action": "ReportWaterLevel",
+      "control_path": "sensor.levelOut → controller.levelIn"
+    }
+  ],
+  "ucas": [
+    {
+      "id": "UCA-001",
+      "control_action_ref": "CA-001",
+      "guideword": "Not Provided",
+      "context": "Water level exceeds triggerLevel_m (0.25 m) and controller is in AUTO mode",
+      "hazard_refs": ["H-1", "HS-1"],
+      "description": "Controller does not issue ActivatePumpA when water level is above trigger threshold in AUTO mode",
+      "failure_mode_link": "FM-C-001",
+      "severity": "catastrophic",
+      "sysml_req_name": "UCA_001_ControllerNoActivatePumpA",
+      "constraint_expression": "sys.controller.responseTime_s <= 2.0 and sys.sensor.waterLevel > 0.25 implies sys.pumpA.flowRate > 0.0",
+      "source_doc": "STPA-BPS-002",
+      "section": "3.1"
+    },
+    {
+      "id": "UCA-002",
+      "control_action_ref": "CA-004",
+      "guideword": "Wrong Value Provided",
+      "context": "Sensor hardware fault — stuck-at-low output during rising water level",
+      "hazard_refs": ["H-1", "HS-1"],
+      "description": "BilgeWaterSensor reports stale/low water level reading while actual level is above threshold (fail-silent fault)",
+      "failure_mode_link": "FM-S-001",
+      "severity": "catastrophic",
+      "sysml_req_name": "UCA_002_SensorFailSilent",
+      "constraint_expression": "sys.sensor.waterLevel >= 0.0 and sys.sensor.waterLevel <= 1.0",
+      "source_doc": "STPA-BPS-002",
+      "section": "3.2"
+    },
+    {
+      "id": "UCA-003",
+      "control_action_ref": "CA-003",
+      "guideword": "Not Provided",
+      "context": "Water level exceeds alarm threshold and controller detects it, but alarmOut is not asserted",
+      "hazard_refs": ["H-3", "HS-2"],
+      "description": "Controller does not trigger alarm when flood condition is detected",
+      "failure_mode_link": "FM-C-002",
+      "severity": "critical",
+      "sysml_req_name": "UCA_003_ControllerNoAlarm",
+      "constraint_expression": "sys.sensor.waterLevel > 0.25 implies sys.alarm.activationDelay_s <= 2.0",
+      "source_doc": "STPA-BPS-002",
+      "section": "3.3"
+    },
+    {
+      "id": "UCA-004",
+      "control_action_ref": "CA-002",
+      "guideword": "Not Provided",
+      "context": "Pump A is faulted (flowRate = 0 or fault signal active) and controller does not switch to Pump B",
+      "hazard_refs": ["H-4", "HS-3"],
+      "description": "Controller fails to activate redundant Pump B when Pump A is unavailable",
+      "failure_mode_link": "FM-C-003",
+      "severity": "critical",
+      "sysml_req_name": "UCA_004_ControllerNoFailover",
+      "constraint_expression": "sys.pumpA.flowRate == 0.0 implies sys.pumpB.flowRate > 0.0 and sys.pumpB.isRedundant == true",
+      "source_doc": "STPA-BPS-002",
+      "section": "3.4"
+    },
+    {
+      "id": "UCA-005",
+      "control_action_ref": "CA-001",
+      "guideword": "Provided Too Late",
+      "context": "Pump A command issued more than 5 seconds after water level crosses trigger threshold",
+      "hazard_refs": ["H-1"],
+      "description": "PumpA activation command is delayed beyond safe response window",
+      "failure_mode_link": "FM-C-001",
+      "severity": "critical",
+      "sysml_req_name": "UCA_005_ControllerDelayedActivation",
+      "constraint_expression": "sys.controller.responseTime_s <= 5.0",
+      "source_doc": "STPA-BPS-002",
+      "section": "3.5"
+    }
+  ]
+}

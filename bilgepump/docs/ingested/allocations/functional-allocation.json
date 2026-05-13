@@ -1,0 +1,29 @@
+{
+  "_meta": {
+    "source_tool": "CORE Systems Engineer v9 — Functional Flow Block Diagram export",
+    "export_format": "FFBD JSON v2.0",
+    "system": "Bilge Pump System",
+    "document_id": "FFBD-001",
+    "revision": "1.2",
+    "date": "2026-05-13",
+    "description": "Functional decomposition of the bilge pump system (FFBD level 2). Provides function-to-part allocations and requirement satisfaction links consumed by AllocationMapper."
+  },
+  "allocations": [
+    { "function_id": "FN-001", "function_name": "SenseBilgeWaterLevel", "description": "Detect and measure water accumulation in the bilge compartment", "allocated_to_part": "BilgeWaterSensor", "allocated_to_instance": "sensor", "source_doc": "FFBD-001", "section": "3.1" },
+    { "function_id": "FN-002", "function_name": "ProcessAndDecideActivation", "description": "Compare measured water level against trigger threshold and decide pump activation", "allocated_to_part": "PumpController", "allocated_to_instance": "controller", "source_doc": "FFBD-001", "section": "3.2" },
+    { "function_id": "FN-003", "function_name": "CommandPrimaryPump", "description": "Issue start/stop command to Pump A via control interface", "allocated_to_part": "PumpController", "allocated_to_instance": "controller", "source_doc": "FFBD-001", "section": "3.3" },
+    { "function_id": "FN-004", "function_name": "CommandRedundantPump", "description": "Issue start/stop command to Pump B on failover trigger", "allocated_to_part": "PumpController", "allocated_to_instance": "controller", "source_doc": "FFBD-001", "section": "3.4" },
+    { "function_id": "FN-005", "function_name": "PumpBilgeWaterPrimary", "description": "Physically discharge bilge water via primary pump impeller", "allocated_to_part": "BilgePumpA", "allocated_to_instance": "pumpA", "source_doc": "FFBD-001", "section": "3.5" },
+    { "function_id": "FN-006", "function_name": "PumpBilgeWaterRedundant", "description": "Physically discharge bilge water via redundant pump impeller on failover", "allocated_to_part": "BilgePumpB", "allocated_to_instance": "pumpB", "source_doc": "FFBD-001", "section": "3.6" },
+    { "function_id": "FN-007", "function_name": "RouteDischargeOverboard", "description": "Route pumped water through piping, strainer, and check valve to overboard discharge", "allocated_to_part": "DischargeLine", "allocated_to_instance": "discharge", "source_doc": "FFBD-001", "section": "3.7" },
+    { "function_id": "FN-008", "function_name": "AnnunciateFloodAlarm", "description": "Activate audible and visual alarm and notify bridge when flood condition detected", "allocated_to_part": "AlarmSystem", "allocated_to_instance": "alarm", "source_doc": "FFBD-001", "section": "3.8" },
+    { "function_id": "FN-009", "function_name": "EnableManualOverride", "description": "Allow bridge operator to force-start or force-stop pumps regardless of automation state", "allocated_to_part": "OperatorInterface", "allocated_to_instance": "ui", "source_doc": "FFBD-001", "section": "3.9" }
+  ],
+  "satisfactions": [
+    { "requirement_id": "BPS-REQ-001", "requirement_name": "WaterLevelRequirement", "satisfied_by_part": "BilgeWaterSensor", "rationale": "Sensor directly measures the constrained attribute (waterLevel)", "source_doc": "FFBD-001", "section": "4.1" },
+    { "requirement_id": "BPS-REQ-001", "requirement_name": "WaterLevelRequirement", "satisfied_by_part": "PumpController", "rationale": "Controller ensures pump activates before level reaches limit", "source_doc": "FFBD-001", "section": "4.1" },
+    { "requirement_id": "BPS-REQ-002", "requirement_name": "PumpRedundancyRequirement", "satisfied_by_part": "BilgePumpB", "rationale": "Pump B is the designated redundant unit with isRedundant attribute", "source_doc": "FFBD-001", "section": "4.2" },
+    { "requirement_id": "BPS-REQ-003", "requirement_name": "AlarmResponseRequirement", "satisfied_by_part": "AlarmSystem", "rationale": "Alarm unit directly controls the activationDelay_s attribute", "source_doc": "FFBD-001", "section": "4.3" },
+    { "requirement_id": "BPS-REQ-004", "requirement_name": "DischargeCapacityRequirement", "satisfied_by_part": "DischargeLine", "rationale": "Discharge line aggregates both pump flows for capacity check", "source_doc": "FFBD-001", "section": "4.4" }
+  ]
+}

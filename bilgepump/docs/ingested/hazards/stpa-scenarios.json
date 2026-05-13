@@ -1,0 +1,96 @@
+{
+  "_meta": {
+    "source_tool": "XSTAMPP 2.0 (STPA Workbench)",
+    "export_format": "XSTAMPP JSON v2.1 — Loss Scenarios",
+    "system": "Bilge Pump System",
+    "document_id": "STPA-BPS-003",
+    "revision": "1.0",
+    "date": "2026-05-13",
+    "description": "Loss scenarios tracing from causal factors through UCAs to hazards and losses, with SysML analysis bindings"
+  },
+  "scenarios": [
+    {
+      "id": "SC-001",
+      "name": "SensorFailSilentFloodScenario",
+      "description": "Sensor reports zero water level while bilge is flooding — controller never activates pumps",
+      "uca_refs": ["UCA-002", "UCA-001"],
+      "hazard_refs": ["H-1"],
+      "loss_refs": ["L-0", "L-1"],
+      "causal_factors": [
+        "Sensor transducer failure (stuck-at-zero output)",
+        "No independent level check in controller firmware",
+        "No watchdog on sensor heartbeat signal"
+      ],
+      "sysml_analysis_name": "SC001_SensorFailSilent",
+      "test_type": "negative",
+      "bindings": [
+        { "path": "sys.sensor.waterLevel",     "value": 0.0,   "note": "Stuck-at-zero fault injection", "unit": "m" },
+        { "path": "sys.pumpA.flowRate",         "value": 0.0,   "note": "Pump not commanded — no trigger", "unit": "m³/s" },
+        { "path": "sys.pumpB.flowRate",         "value": 0.0,   "note": "Pump not commanded — no trigger", "unit": "m³/s" },
+        { "path": "sys.alarm.activationDelay_s","value": 999.0, "note": "Alarm never fires", "unit": "s" }
+      ],
+      "expected_violations": [
+        "UCA_002_SensorFailSilent",
+        "UCA_001_ControllerNoActivatePumpA",
+        "DischargeCapacityRequirement",
+        "AlarmResponseRequirement"
+      ],
+      "source_doc": "STPA-BPS-003",
+      "section": "4.1"
+    },
+    {
+      "id": "SC-002",
+      "name": "ControllerFailNoFailoverScenario",
+      "description": "Pump A fails (zero flow), controller firmware does not activate Pump B failover logic",
+      "uca_refs": ["UCA-004"],
+      "hazard_refs": ["H-4"],
+      "loss_refs": ["L-1"],
+      "causal_factors": [
+        "Pump A cavitation — motor draws power but delivers zero flow",
+        "Controller uses power feedback, not flow feedback, to assess pump health",
+        "Failover logic not triggered because power signal still active"
+      ],
+      "sysml_analysis_name": "SC002_ControllerNoFailover",
+      "test_type": "negative",
+      "bindings": [
+        { "path": "sys.sensor.waterLevel",     "value": 0.28,  "note": "Rising flood level", "unit": "m" },
+        { "path": "sys.pumpA.flowRate",         "value": 0.0,   "note": "Pump A cavitating — zero discharge", "unit": "m³/s" },
+        { "path": "sys.pumpB.flowRate",         "value": 0.0,   "note": "Failover not triggered by controller", "unit": "m³/s" },
+        { "path": "sys.alarm.activationDelay_s","value": 0.5,   "note": "Alarm fires correctly", "unit": "s" }
+      ],
+      "expected_violations": [
+        "UCA_004_ControllerNoFailover",
+        "DischargeCapacityRequirement"
+      ],
+      "source_doc": "STPA-BPS-003",
+      "section": "4.2"
+    },
+    {
+      "id": "SC-003",
+      "name": "AlarmSuppressedScenario",
+      "description": "Controller detects flood but alarm output is suppressed (software inhibit active from maintenance mode)",
+      "uca_refs": ["UCA-003"],
+      "hazard_refs": ["H-3"],
+      "loss_refs": ["L-0", "L-1"],
+      "causal_factors": [
+        "Maintenance mode inhibit flag not cleared after dry-dock",
+        "No auto-timeout on alarm inhibit in firmware",
+        "Bridge watch not alerted — no backup annunciation path"
+      ],
+      "sysml_analysis_name": "SC003_AlarmSuppressed",
+      "test_type": "negative",
+      "bindings": [
+        { "path": "sys.sensor.waterLevel",     "value": 0.28,  "note": "Real flooding condition", "unit": "m" },
+        { "path": "sys.pumpA.flowRate",         "value": 0.025, "note": "Pumps running but alarm suppressed", "unit": "m³/s" },
+        { "path": "sys.pumpB.flowRate",         "value": 0.025, "note": "Nominal pump operation", "unit": "m³/s" },
+        { "path": "sys.alarm.activationDelay_s","value": 120.0, "note": "Alarm inhibited by maintenance flag", "unit": "s" }
+      ],
+      "expected_violations": [
+        "UCA_003_ControllerNoAlarm",
+        "AlarmResponseRequirement"
+      ],
+      "source_doc": "STPA-BPS-003",
+      "section": "4.3"
+    }
+  ]
+}

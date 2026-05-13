@@ -1,0 +1,138 @@
+{
+  "_meta": {
+    "source_tool": "SAP Plant Maintenance BOM Export",
+    "export_format": "SAP BOM JSON v1.0",
+    "system": "Bilge Pump System",
+    "document_id": "BOM-001",
+    "revision": "2.3",
+    "date": "2026-05-13",
+    "description": "Bill of Materials for the bilge pump system. 8 physical components with rated specifications. Source for PartDefMapper."
+  },
+  "components": [
+    {
+      "name": "BilgeWaterSensor",
+      "part_number": "BWS-4200-SS",
+      "description": "Submersible ultrasonic level sensor for bilge water measurement",
+      "ports": [{ "name": "levelOut", "type": "LevelSignalPort", "direction": "out" }],
+      "attributes": [
+        { "name": "waterLevel", "type": "Real", "unit": "m", "nominal": 0.0, "max": 1.0 }
+      ],
+      "rated_specs": { "range_m": "0.0–1.0", "accuracy_mm": 5, "ip_rating": "IP68", "temp_range_C": "-10 to +60" },
+      "manufacturer": "Vega Process Instrumentation",
+      "model": "VEGAFLEX 82",
+      "source_doc": "BOM-001", "section": "2.1"
+    },
+    {
+      "name": "PumpController",
+      "part_number": "PCU-9000-DNV",
+      "description": "Programmable pump control unit with NMEA 2000 interface",
+      "ports": [
+        { "name": "levelIn",     "type": "LevelSignalPort",  "direction": "in"  },
+        { "name": "pumpAControl","type": "PumpControlPort",  "direction": "out" },
+        { "name": "pumpBControl","type": "PumpControlPort",  "direction": "out" },
+        { "name": "statusOut",   "type": "StatusPort",       "direction": "out" },
+        { "name": "alarmOut",    "type": "AlarmPort",        "direction": "out" },
+        { "name": "overrideIn",  "type": "OverridePort",     "direction": "in"  }
+      ],
+      "attributes": [
+        { "name": "triggerLevel_m",  "type": "Real", "unit": "m",  "nominal": 0.25 },
+        { "name": "responseTime_s",  "type": "Real", "unit": "s",  "nominal": 1.0, "max": 5.0 }
+      ],
+      "rated_specs": { "cpu": "ARM Cortex-M4", "watchdog": "hardware", "certifications": ["DNV GL", "IEC 61508 SIL2"] },
+      "source_doc": "BOM-001", "section": "2.2"
+    },
+    {
+      "name": "PowerSupply",
+      "part_number": "PSU-440-DUAL",
+      "description": "Dual-bus power supply unit — main 440VAC + independent emergency bus",
+      "ports": [
+        { "name": "powerOutA", "type": "PowerPort", "direction": "out" },
+        { "name": "powerOutB", "type": "PowerPort", "direction": "out" }
+      ],
+      "attributes": [
+        { "name": "nominalVoltage",   "type": "Real",    "unit": "V",  "nominal": 440.0 },
+        { "name": "redundancyActive", "type": "Boolean", "nominal": false }
+      ],
+      "rated_specs": { "voltage_VAC": 440, "frequency_Hz": 60, "phases": 3, "independent_buses": 2 },
+      "source_doc": "BOM-001", "section": "2.3"
+    },
+    {
+      "name": "BilgePumpA",
+      "part_number": "BP-65-2950-A",
+      "description": "Primary bilge centrifugal pump — 65 NB, 2950 RPM",
+      "ports": [
+        { "name": "controlIn", "type": "PumpControlPort", "direction": "in"  },
+        { "name": "powerIn",   "type": "PowerPort",       "direction": "in"  },
+        { "name": "flowOut",   "type": "FluidFlowPort",   "direction": "out" }
+      ],
+      "attributes": [
+        { "name": "flowRate",    "type": "Real",    "unit": "m³/s",  "nominal": 0.025 },
+        { "name": "efficiency",  "type": "Real",    "unit": "",      "nominal": 0.82  },
+        { "name": "runHours",    "type": "Real",    "unit": "h",     "nominal": 120.0 }
+      ],
+      "rated_specs": { "flow_lps": 25, "head_m": 16.4, "power_kW": 7.5, "impeller_diameter_mm": 165 },
+      "source_doc": "BOM-001", "section": "2.4"
+    },
+    {
+      "name": "BilgePumpB",
+      "part_number": "BP-65-2950-B",
+      "description": "Redundant bilge centrifugal pump — identical to Pump A, independent power feed",
+      "ports": [
+        { "name": "controlIn", "type": "PumpControlPort", "direction": "in"  },
+        { "name": "powerIn",   "type": "PowerPort",       "direction": "in"  },
+        { "name": "flowOut",   "type": "FluidFlowPort",   "direction": "out" }
+      ],
+      "attributes": [
+        { "name": "flowRate",    "type": "Real",    "unit": "m³/s", "nominal": 0.025 },
+        { "name": "efficiency",  "type": "Real",    "unit": "",     "nominal": 0.82  },
+        { "name": "runHours",    "type": "Real",    "unit": "h",    "nominal": 85.0  },
+        { "name": "isRedundant", "type": "Boolean", "nominal": true }
+      ],
+      "rated_specs": { "flow_lps": 25, "head_m": 16.4, "power_kW": 7.5, "independent_power": true },
+      "source_doc": "BOM-001", "section": "2.5"
+    },
+    {
+      "name": "DischargeLine",
+      "part_number": "DLINE-65NB-CS",
+      "description": "65 NB carbon steel overboard discharge piping with strainer and non-return valve",
+      "ports": [
+        { "name": "flowInA", "type": "FluidFlowPort", "direction": "in" },
+        { "name": "flowInB", "type": "FluidFlowPort", "direction": "in" }
+      ],
+      "attributes": [
+        { "name": "pipeLossFactor", "type": "Real", "unit": "", "nominal": 0.05 }
+      ],
+      "rated_specs": { "nominal_bore_mm": 65, "material": "Carbon steel A106-B", "max_pressure_kPa": 200, "strainer_mesh_mm": 3 },
+      "source_doc": "BOM-001", "section": "2.6"
+    },
+    {
+      "name": "AlarmSystem",
+      "part_number": "ALM-IEC60945-MK3",
+      "description": "IEC 60945-compliant audible/visual alarm unit with NMEA 2000 bridge integration",
+      "ports": [
+        { "name": "alarmIn",   "type": "AlarmPort",  "direction": "in"  },
+        { "name": "notifyOut", "type": "AlarmPort",  "direction": "out" }
+      ],
+      "attributes": [
+        { "name": "activationDelay_s", "type": "Real",    "unit": "s",  "nominal": 0.5, "max": 2.0 },
+        { "name": "isActive",          "type": "Boolean", "nominal": false }
+      ],
+      "rated_specs": { "sound_level_dB": 85, "lamp_type": "LED", "certifications": ["IEC 60945", "DNV GL"] },
+      "source_doc": "BOM-001", "section": "2.7"
+    },
+    {
+      "name": "OperatorInterface",
+      "part_number": "HMI-BRIDGE-V3",
+      "description": "Bridge HMI panel with status display and manual override pushbuttons",
+      "ports": [
+        { "name": "statusIn",  "type": "StatusPort",   "direction": "in"  },
+        { "name": "notifyIn",  "type": "AlarmPort",    "direction": "in"  },
+        { "name": "overrideOut","type": "OverridePort", "direction": "out" }
+      ],
+      "attributes": [
+        { "name": "overrideActive", "type": "Boolean", "nominal": false }
+      ],
+      "source_doc": "BOM-001", "section": "2.8"
+    }
+  ]
+}

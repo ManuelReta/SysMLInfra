@@ -1,0 +1,49 @@
+{
+  "_meta": {
+    "source_tool": "ANSYS Mechanical 2025R1 (FEA — structural analysis)",
+    "export_format": "ANSYS Mechanical Results JSON Extract",
+    "system": "Bilge Pump System — structural loads on pump housing under flooding scenario",
+    "document_id": "FEA-STRUCT-001",
+    "revision": "1.0",
+    "date": "2026-05-13",
+    "description": "Hydrostatic pressure loads on bilge pump housing and discharge piping under worst-case damage flooding scenario. Maximum pressure and fatigue safety factor used as attribute values in structural integrity constraints."
+  },
+  "attributes": [
+    {
+      "component": "BilgePumpA",
+      "attribute": "maxHydrostaticPressure_kPa",
+      "value": 42.5,
+      "unit": "kPa",
+      "description": "Maximum hydrostatic pressure on pump casing at 4.3 m flood head (worst-case damage stability scenario from Maxsurf)",
+      "source": "ANSYS Mechanical linear static analysis — 1.5M element tetrahedral mesh",
+      "source_doc": "FEA-STRUCT-001",
+      "section": "4.1",
+      "safety_factor": 3.2,
+      "material": "Cast iron GG-20 (pump casing); rated pressure 200 kPa"
+    },
+    {
+      "component": "DischargeLine",
+      "attribute": "maxPipeWallStress_MPa",
+      "value": 18.7,
+      "unit": "MPa",
+      "description": "Maximum hoop stress in discharge pipe at BEP flow rate (2.5 l/s) and maximum working pressure",
+      "source": "ANSYS Mechanical pressure vessel analysis per EN 13480",
+      "source_doc": "FEA-STRUCT-001",
+      "section": "4.2",
+      "safety_factor": 4.8,
+      "allowable_stress_MPa": 90.0,
+      "material": "Carbon steel A106 Grade B"
+    },
+    {
+      "component": "DischargeLine",
+      "attribute": "pipeLossFactor",
+      "value": 0.05,
+      "unit": "dimensionless",
+      "uncertainty_1sigma": 0.008,
+      "description": "Darcy-Weisbach friction factor for discharge line including fittings (equivalent length method)",
+      "source": "ANSYS Fluent CFD pipe flow simulation + manual calculation (Moody chart cross-check)",
+      "source_doc": "FEA-STRUCT-001",
+      "section": "4.3"
+    }
+  ]
+}

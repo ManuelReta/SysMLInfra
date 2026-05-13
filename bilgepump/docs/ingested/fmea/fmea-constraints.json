@@ -1,0 +1,68 @@
+{
+  "_meta": {
+    "source_tool": "ReliaSoft BlockSim 12",
+    "export_format": "BlockSim JSON Reliability Model Export",
+    "system": "Bilge Pump System",
+    "document_id": "FMEA-BPS-002",
+    "revision": "1.0",
+    "date": "2026-05-13",
+    "description": "Reliability and risk equations consumed by ConstraintMapper to emit SysML constraint def blocks"
+  },
+  "constraints": [
+    {
+      "name": "RiskPriorityNumber",
+      "description": "FMEA Risk Priority Number: product of Severity, Occurrence, and Detection ratings (MIL-STD-1629A)",
+      "equation": "rpn = severity * occurrence * detection",
+      "parameters": [
+        { "name": "rpn",        "role": "output", "type": "Real", "unit": "dimensionless", "range": "1-1000", "description": "Risk Priority Number — higher values indicate higher risk" },
+        { "name": "severity",   "role": "input",  "type": "Integer", "unit": "dimensionless", "range": "1-10", "description": "Severity of failure effect on system or user (AIAG scale)" },
+        { "name": "occurrence", "role": "input",  "type": "Integer", "unit": "dimensionless", "range": "1-10", "description": "Likelihood of failure cause occurring during design life" },
+        { "name": "detection",  "role": "input",  "type": "Integer", "unit": "dimensionless", "range": "1-10", "description": "Likelihood that existing controls will detect the failure before it reaches the customer" }
+      ],
+      "action_threshold": 100,
+      "standard": "MIL-STD-1629A; AIAG FMEA 4th Edition",
+      "source_doc": "FMEA-BPS-002",
+      "section": "2.1",
+      "verification_note": "RPN alone is not sufficient for safety-critical assessment; use in conjunction with STPA hazard severity"
+    },
+    {
+      "name": "ParallelRedundancyFailureRate",
+      "description": "System failure rate for two pumps in active parallel redundancy (both must fail for system failure). Based on exponential reliability model assuming constant failure rates.",
+      "equation": "lambda_sys = lambda_A * lambda_B",
+      "parameters": [
+        { "name": "lambda_sys", "role": "output", "type": "Real", "unit": "failures/hour", "description": "Combined system failure rate with parallel redundancy" },
+        { "name": "lambda_A",   "role": "input",  "type": "Real", "unit": "failures/hour", "description": "Pump A failure rate (exponential model)" },
+        { "name": "lambda_B",   "role": "input",  "type": "Real", "unit": "failures/hour", "description": "Pump B failure rate (exponential model); assumed equal to lambda_A for identical pumps" }
+      ],
+      "nominal_values": {
+        "lambda_A": 1.5e-5,
+        "lambda_B": 1.5e-5,
+        "lambda_sys": 2.25e-10,
+        "mtbf_sys_hours": 4444444
+      },
+      "standard": "IEC 61508-6 Table B.5 — Redundancy architectures; MIL-HDBK-217F",
+      "source_doc": "FMEA-BPS-002",
+      "section": "2.2",
+      "verification_note": "Valid for exponential lifetime distribution only; use Weibull for wear-out phases > 8000 run hours"
+    },
+    {
+      "name": "NPSHMarginCheck",
+      "description": "Cavitation avoidance constraint: available NPSH must exceed required NPSH by the design margin",
+      "equation": "npsh_available >= npsh_required + npsh_margin",
+      "parameters": [
+        { "name": "npsh_available", "role": "output", "type": "Real", "unit": "m",   "description": "Net Positive Suction Head available from system geometry and fluid conditions" },
+        { "name": "npsh_required",  "role": "input",  "type": "Real", "unit": "m",   "description": "NPSH required by pump at rated flow, per vendor curve" },
+        { "name": "npsh_margin",    "role": "input",  "type": "Real", "unit": "m",   "description": "Design margin added to account for transient conditions (typically 1.0 m per Hydraulic Institute)" }
+      ],
+      "nominal_values": {
+        "npsh_required": 2.5,
+        "npsh_margin": 1.0,
+        "npsh_available_min": 4.2
+      },
+      "standard": "Hydraulic Institute Standards; ISO 9906 — Rotodynamic pumps",
+      "source_doc": "FMEA-BPS-002",
+      "section": "2.3",
+      "failure_mode_link": "FM-PA-002"
+    }
+  ]
+}

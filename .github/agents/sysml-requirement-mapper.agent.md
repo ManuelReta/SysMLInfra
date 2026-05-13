@@ -106,3 +106,108 @@ requirement def {requirement.name} {
 - DO NOT assign numeric values to system attributes directly
 - ALWAYS include the regulatory source reference in the doc comment
 - Signal completion: `lib/build-state.json` `"phaseStatus.phase3.requirements": "complete"`
+
+---
+
+## STPA Extension — UCA-Derived Safety Requirements
+<!-- Added: STPA/FMEA/RAAML integration -->
+
+When `docs/ingested/hazards/` exists and contains `stpa-ucas.json`:
+
+### Additional Input Contract (STPA UCAs → requirement def)
+
+Read `docs/ingested/hazards/stpa-ucas.json`. For each UCA object, emit a
+`requirement def` in `Safety.sysml` (NOT in Requirements.sysml — this is a
+separate file in the `BilgePump::Safety` package):
+
+```json
+{
+  "id": "UCA-001",
+  "sysml_req_name": "UCA_001_ControllerNoActivatePumpA",
+  "guideword": "Not Provided",
+  "context": "Water level ≥ triggerLevel_m in AUTO mode",
+  "hazard_refs": ["H-1"],
+  "constraint_expression": "sys.controller.responseTime_s <= 5.0",
+  "source_doc": "STPA-BPS-002",
+  "section": "3.1"
+}
+```
+
+### STPA Output Pattern (with OMG RAAML annotations)
+
+Emit in `Safety.sysml` inside package `'BilgePump::Safety'`:
+
+```sysml
+// -------------------------------------------------------------------------
+// {uca.id} Safety Requirement: {uca.control_action} — {uca.guideword}
+// DERIVED FROM: {uca.id}
+// SOURCE: {source_doc} §{section}
+// -------------------------------------------------------------------------
+#UCA {
+    ucaId         = "{uca.id}";
+    controlAction = "{uca.control_action}";
+    guideword     = "{uca.guideword}";
+    context       = "{uca.context}";
+    hazardRefs    = "{uca.hazard_refs joined by comma}";
+    severity      = "{uca.severity}";
+    failureModeLink = "{uca.failure_mode_link}";
+    sourceDoc     = "{source_doc}";
+    section       = "{section}";
+}
+#SafetyRequirement {
+    srId            = "SR-{sequence}";
+    derivedFrom     = "{uca.id}";
+    rationale       = "Eliminates {uca.guideword} scenario for {uca.control_action}";
+    verificationMethod = "analysis";
+    sourceDoc       = "{source_doc}";
+    section         = "{uca.section_safety_constraints}";
+}
+requirement def {uca.sysml_req_name} {
+    subject sys : BilgePumpSystem;
+
+    doc /* {uca.description}
+           Derived from STPA {uca.id}; eliminates {uca.hazard_refs[0]}. */
+
+    require constraint {
+        {uca.constraint_expression}
+    }
+}
+```
+
+**RAAML compatibility note**: If the Pilot API rejects `#UCA { }` and `#SafetyRequirement { }`
+annotation syntax (requires JAR ≥ 2022-06), emit the `requirement def` blocks without
+the annotation lines. The requirement logic is still valid and testable without annotations.
+
+### FMEA Threshold Requirements
+
+When `docs/ingested/fmea/pump-fmea-table.json` exists and a failure mode has a
+measurable threshold constraint (e.g., RPN ≥ threshold, NPSH margin), emit a
+`requirement def` for the threshold in `FMEA.sysml`:
+
+```sysml
+requirement def FM_PA002_CavitationAvoidance {
+    subject sys : BilgePumpSystem;
+    doc /* Pump A efficiency shall not fall below the cavitation onset threshold
+           of 0.50 (dimensionless). Derived from FMEA FM-PA-002.
+           SOURCE: FMEA-BPS-001 §4.2 */
+    require constraint {
+        sys.pumpA.efficiency >= 0.50
+    }
+}
+```
+
+Only emit FMEA threshold requirements when `constraint_expression` is clearly
+derivable from the failure mode data — do not invent constraints.
+
+### Phase 3.5 Exit Signal
+
+After processing STPA and FMEA requirement inputs, write to `lib/build-state.json`:
+```json
+"phaseStatus": {
+    "phase3_5": {
+        "safety": "complete",
+        "fmea": "pending"
+    }
+}
+```
+(`fmea` is set to `"complete"` by ConstraintMapper + AnalysisMapper for the FMEA constraint/analysis defs.)

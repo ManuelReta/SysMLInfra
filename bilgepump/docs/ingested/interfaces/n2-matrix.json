@@ -1,0 +1,112 @@
+{
+  "_meta": {
+    "source_tool": "Rhapsody Systems Modeler — N2 Matrix Export",
+    "export_format": "ICD JSON v1.4",
+    "system": "Bilge Pump System",
+    "document_id": "ICD-BPS-001",
+    "revision": "2.1",
+    "date": "2026-05-13",
+    "description": "Interface Control Document for the Bilge Pump System. Defines all 8 interface types (port defs) with their signal types, medium, and connection directions. Source for PortDefMapper."
+  },
+  "interfaces": [
+    {
+      "id": "IF-001",
+      "name": "LevelSignalPort",
+      "description": "Sensor-to-Controller water level measurement",
+      "signal_type": "analog_scalar",
+      "medium": "4-20 mA current loop (NMEA 2000 PGN in vessel integration)",
+      "direction": "out→in",
+      "from_component": "BilgeWaterSensor",
+      "to_component": "PumpController",
+      "attributes": [{ "name": "waterLevel", "type": "Real", "unit": "m", "range": "0.0-1.0" }],
+      "source_doc": "ICD-BPS-001", "section": "3.1"
+    },
+    {
+      "id": "IF-002",
+      "name": "PumpControlPort",
+      "description": "Controller-to-Pump start/stop command",
+      "signal_type": "discrete_string",
+      "medium": "Hardwired relay + NMEA 2000 PGN (digital integration)",
+      "direction": "out→in",
+      "from_component": "PumpController",
+      "to_component": "BilgePumpA|BilgePumpB",
+      "attributes": [{ "name": "command", "type": "String", "values": ["START", "STOP", "FAULT"] }],
+      "source_doc": "ICD-BPS-001", "section": "3.2"
+    },
+    {
+      "id": "IF-003",
+      "name": "PowerPort",
+      "description": "Power supply to pump motor",
+      "signal_type": "electrical_3phase",
+      "medium": "3-phase 440 VAC power cable (IEC 61850 GOOSE for status)",
+      "direction": "out→in",
+      "from_component": "PowerSupply",
+      "to_component": "BilgePumpA|BilgePumpB",
+      "attributes": [
+        { "name": "voltage", "type": "Real", "unit": "V", "nominal": 440.0 },
+        { "name": "isEmergency", "type": "Boolean", "description": "True when emergency bus active" }
+      ],
+      "source_doc": "ICD-BPS-001", "section": "3.3"
+    },
+    {
+      "id": "IF-004",
+      "name": "FluidFlowPort",
+      "description": "Pump discharge to overboard line",
+      "signal_type": "fluid_flow",
+      "medium": "Seawater in 65 NB carbon steel pipe",
+      "direction": "out→in",
+      "from_component": "BilgePumpA|BilgePumpB",
+      "to_component": "DischargeLine",
+      "attributes": [{ "name": "flowRate", "type": "Real", "unit": "m³/s", "nominal": 0.025 }],
+      "source_doc": "ICD-BPS-001", "section": "3.4"
+    },
+    {
+      "id": "IF-005",
+      "name": "StatusPort",
+      "description": "Controller status to operator interface",
+      "signal_type": "status_string",
+      "medium": "RS-485 serial (Modbus RTU) to bridge HMI",
+      "direction": "out→in",
+      "from_component": "PumpController",
+      "to_component": "OperatorInterface",
+      "attributes": [{ "name": "status", "type": "String", "values": ["NORMAL", "PUMPING", "FAULT", "OVERRIDE"] }],
+      "source_doc": "ICD-BPS-001", "section": "3.5"
+    },
+    {
+      "id": "IF-006",
+      "name": "AlarmPort",
+      "description": "Alarm trigger from controller to alarm unit",
+      "signal_type": "discrete_boolean",
+      "medium": "Hardwired contact output; NMEA 2000 alarm PGN",
+      "direction": "out→in",
+      "from_component": "PumpController",
+      "to_component": "AlarmSystem",
+      "attributes": [{ "name": "alarmActive", "type": "Boolean" }],
+      "source_doc": "ICD-BPS-001", "section": "3.6"
+    },
+    {
+      "id": "IF-007",
+      "name": "OverridePort",
+      "description": "Manual override from operator interface to controller",
+      "signal_type": "discrete_boolean",
+      "medium": "Hardwired button input; bridge HMI serial command",
+      "direction": "out→in",
+      "from_component": "OperatorInterface",
+      "to_component": "PumpController",
+      "attributes": [{ "name": "override", "type": "Boolean" }],
+      "source_doc": "ICD-BPS-001", "section": "3.7"
+    },
+    {
+      "id": "IF-008",
+      "name": "AlarmNotifyPort",
+      "description": "Alarm annunciation from alarm unit back to operator interface",
+      "signal_type": "discrete_boolean",
+      "medium": "Hardwired contact; bridge BNWAS integration",
+      "direction": "out→in",
+      "from_component": "AlarmSystem",
+      "to_component": "OperatorInterface",
+      "attributes": [{ "name": "alarmActive", "type": "Boolean" }],
+      "source_doc": "ICD-BPS-001", "section": "3.8"
+    }
+  ]
+}

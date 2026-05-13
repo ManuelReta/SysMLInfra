@@ -1,0 +1,50 @@
+{
+  "_meta": {
+    "source_tool": "OpenFOAM v10 (CFD simulation)",
+    "export_format": "OpenFOAM postProcess JSON extract",
+    "system": "Bilge Pump System — BilgePumpA/B Hydraulic Model",
+    "document_id": "CFD-PUMP-001",
+    "revision": "2.0",
+    "date": "2026-05-13",
+    "description": "Pump performance curve data exported from OpenFOAM steady-state RANS simulation at 5 operating points. Provides Q-H curve, efficiency curve, and NPSH curve for use in SysML constraint def parametric bindings."
+  },
+  "constraints": [
+    {
+      "name": "PumpFlowPhysics",
+      "description": "Net effective discharge flow rate accounting for hydraulic efficiency and Darcy-Weisbach pipe friction losses. Based on OpenFOAM k-ε RANS simulation at rated impeller speed (2950 RPM).",
+      "equation": "Q_net = (Q_A + Q_B) * eta * (1 - lambda)",
+      "parameters": [
+        { "name": "Q_net",   "role": "output", "type": "Real", "unit": "m³/s", "description": "Net effective discharge rate" },
+        { "name": "Q_A",     "role": "input",  "type": "Real", "unit": "m³/s", "description": "Pump A volumetric flow rate at rated speed" },
+        { "name": "Q_B",     "role": "input",  "type": "Real", "unit": "m³/s", "description": "Pump B volumetric flow rate (identical to A)" },
+        { "name": "eta",     "role": "input",  "type": "Real", "unit": "dimensionless", "description": "Hydraulic efficiency — best efficiency point from CFD" },
+        { "name": "lambda",  "role": "input",  "type": "Real", "unit": "dimensionless", "description": "Darcy-Weisbach pipe friction factor from P&ID hydraulic calc" }
+      ],
+      "operating_points": [
+        { "Q_m3s": 0.010, "head_m": 18.2, "efficiency": 0.61, "NPSH_required_m": 1.8, "note": "Low flow — left side of curve" },
+        { "Q_m3s": 0.018, "head_m": 17.5, "efficiency": 0.73, "NPSH_required_m": 2.0, "note": "Part load" },
+        { "Q_m3s": 0.025, "head_m": 16.4, "efficiency": 0.82, "NPSH_required_m": 2.5, "note": "Rated point — BEP" },
+        { "Q_m3s": 0.031, "head_m": 14.8, "efficiency": 0.78, "NPSH_required_m": 3.1, "note": "Overload" },
+        { "Q_m3s": 0.038, "head_m": 11.2, "efficiency": 0.61, "NPSH_required_m": 4.2, "note": "Run-out — risk of cavitation" }
+      ],
+      "rated_point": { "Q_m3s": 0.025, "efficiency": 0.82, "NPSH_required_m": 2.5 },
+      "equation_standard": "Darcy-Weisbach; ISO 9906 — Rotodynamic pump performance test",
+      "verification_notes": "Valid for turbulent flow Re > 4000; k-ε model used with wall functions. Grid sensitivity study: 5 meshes from 200k to 2.1M cells; GCI < 1.2%.",
+      "source_doc": "CFD-PUMP-001",
+      "section": "4.2"
+    },
+    {
+      "name": "PumpCavitationMarginCheck",
+      "description": "Ensures available NPSH at pump inlet exceeds required NPSH from CFD curve plus design margin.",
+      "equation": "npsh_available >= npsh_required + npsh_margin",
+      "parameters": [
+        { "name": "npsh_available", "role": "output", "type": "Real", "unit": "m", "description": "NPSH available from suction piping geometry" },
+        { "name": "npsh_required",  "role": "input",  "type": "Real", "unit": "m", "description": "NPSH required at rated flow from CFD curve" },
+        { "name": "npsh_margin",    "role": "input",  "type": "Real", "unit": "m", "description": "Safety margin per Hydraulic Institute Standards (1.0 m minimum)" }
+      ],
+      "nominal_values": { "npsh_required": 2.5, "npsh_margin": 1.0, "npsh_available": 4.2 },
+      "source_doc": "CFD-PUMP-001",
+      "section": "4.3"
+    }
+  ]
+}

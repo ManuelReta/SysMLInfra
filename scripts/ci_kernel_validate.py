@@ -2,26 +2,41 @@
 """
 ci_kernel_validate.py — Headless SysML v2 kernel validator for CI/CD pipelines.
 
-Reads the ordered layer list from sysml-project.yml at the repository root,
-builds an in-memory Jupyter notebook, executes it against the SysML v2 kernel,
-and exits with code 1 on any compiler error or failed assertion.
+Reads sysml-project.yml at the repository root and executes the declared
+layers against the SysML v2 kernel, failing on any syntax error, unresolved
+name, or violated assertion.
 
-Designed to run in GitHub Actions (validate-pr.yml) and locally.  The kernel
-validates syntax, cross-file name resolution, port compatibility, and Analysis
-assert-requirement results — all natively, without any custom SysML parser.
+Two layer lists are supported in sysml-project.yml:
+
+  layers            — full list; used by --dry-run (file existence) and commit.sh.
+  validation_layers — positive-test subset; used for kernel execution in CI.
+                      Layers containing intentional VIOLATED assertions (negative
+                      tests — e.g. FMEA.sysml, UQ.sysml) must be excluded here
+                      and validated separately via Safety.ipynb.
 
 Usage:
-    python scripts/ci_kernel_validate.py           # full validation (needs kernel)
-    python scripts/ci_kernel_validate.py --dry-run  # verify files exist, no kernel
+    python scripts/ci_kernel_validate.py           # kernel run (validation_layers)
+    python scripts/ci_kernel_validate.py --dry-run  # file existence check (layers)
+    python scripts/ci_kernel_validate.py --all-layers  # kernel run on ALL layers
+                                                        # (may produce expected failures
+                                                        #  from FMEA/UQ negative tests)
 
 Requirements (CI):
     conda install -c conda-forge jupyter-sysml-kernel=0.58.0 nbclient nbformat
     OR:
     pip install nbclient nbformat  (kernel must already be registered separately)
 
+Known limitations:
+  - RAAML 'metadata def' syntax requires SysML v2 Pilot JAR >= 2022-06.
+    If the kernel rejects RAAML.sysml, replace 'metadata def' with 'attribute def'
+    (see fallback mode documented in bilgepump/RAAML.sysml).
+  - The kernel validates syntax and positive-test assertions only.  Constraint
+    expressions in verify.sh and Safety.ipynb are evaluated in Python, not by
+    the kernel — they use regex + eval and do not have full SysML type semantics.
+
 Adapting for a new project:
-    Edit sysml-project.yml — change the 'layers' list.  This script is generic
-    and requires no modification.
+    Edit sysml-project.yml — change 'name', 'layers', and 'validation_layers'.
+    This script is generic and requires no modification.
 """
 
 import argparse
@@ -46,10 +61,15 @@ MANIFEST  = os.path.join(REPO_ROOT, "sysml-project.yml")
 # ---------------------------------------------------------------------------
 
 def read_manifest(path: str) -> tuple:
-    """Return (project_name: str, layers: list[str]) from sysml-project.yml."""
+    """Return (name, layers, validation_layers) from sysml-project.yml.
+
+    validation_layers is None when the key is absent from the manifest.
+    In that case callers should fall back to layers.
+    """
     name = "SysMLProject"
-    layers = []
-    in_layers = False
+    layers: list = []
+    validation_layers: list | None = None
+    current_list: list | None = None  # which list we are currently appending to
     with open(path) as fh:
         for raw_line in fh:
             s = raw_line.strip()
@@ -57,24 +77,35 @@ def read_manifest(path: str) -> tuple:
                 continue
             if s.startswith("name:"):
                 name = s.split(":", 1)[1].strip().strip("\"'")
-                in_layers = False
+                current_list = None
             elif s == "layers:":
-                in_layers = True
-            elif in_layers and s.startswith("- "):
-                layers.append(s[2:].strip())
-            elif in_layers and not s.startswith("- "):
-                # Any non-list line ends the layers block
-                in_layers = False
-    return name, layers
+                current_list = layers
+            elif s == "validation_layers:":
+                validation_layers = []
+                current_list = validation_layers
+            elif current_list is not None and s.startswith("- "):
+                current_list.append(s[2:].strip())
+            elif current_list is not None and not s.startswith("- "):
+                # Any non-list line ends the active list block
+                current_list = None
+    return name, layers, validation_layers
 
 
 # ---------------------------------------------------------------------------
 # Dry-run: verify all layer files exist and print the execution order
 # ---------------------------------------------------------------------------
 
-def dry_run(name: str, layers: list) -> None:
+def dry_run(name: str, layers: list, validation_layers: list | None = None) -> None:
     print(f"DRY RUN  —  project: {name}")
-    print(f"  {len(layers)} layer(s) in execution order:\n")
+    vl_set = set(validation_layers) if validation_layers else set(layers)
+    print(f"  {len(layers)} layer(s) in manifest order")
+    if validation_layers is not None:
+        excluded = [l for l in layers if l not in vl_set]
+        if excluded:
+            print(f"  {len(excluded)} layer(s) excluded from kernel CI (negative tests — validated by Safety.ipynb):")
+            for e in excluded:
+                print(f"    - {e}")
+    print()
     missing = []
     for i, fname in enumerate(layers, 1):
         path = os.path.join(REPO_ROOT, fname)
@@ -261,7 +292,15 @@ def main() -> None:
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Verify layer files exist and print execution order; do not start the kernel",
+        help="Verify all layer files exist and print the execution plan; do not start the kernel",
+    )
+    parser.add_argument(
+        "--all-layers",
+        action="store_true",
+        help=(
+            "Run the kernel against ALL layers (ignores validation_layers). "
+            "Expect failures from FMEA/UQ negative-test analysis defs."
+        ),
     )
     parser.add_argument(
         "--manifest",
@@ -276,16 +315,32 @@ def main() -> None:
               "Create sysml-project.yml at the repository root.", file=sys.stderr)
         sys.exit(1)
 
-    name, layers = read_manifest(args.manifest)
+    name, layers, validation_layers = read_manifest(args.manifest)
 
     if not layers:
         print("ERROR: sysml-project.yml contains no 'layers' entries.", file=sys.stderr)
         sys.exit(1)
 
+    # Determine which layer set to use for kernel execution.
+    # --dry-run always uses the full 'layers' list (checks all files exist).
+    # --all-layers overrides validation_layers (useful for local debugging).
+    # Default: use validation_layers if present, else fall back to layers.
     if args.dry_run:
-        dry_run(name, layers)
-    else:
+        dry_run(name, layers, validation_layers)
+    elif args.all_layers:
+        print("NOTE: --all-layers set — running kernel on ALL layers.")
+        print("      FMEA/UQ negative-test violations are expected and will cause failures.\n")
         validate(name, layers)
+    else:
+        kernel_layers = validation_layers if validation_layers is not None else layers
+        if validation_layers is not None and len(validation_layers) < len(layers):
+            excluded = [l for l in layers if l not in set(validation_layers)]
+            print(f"NOTE: {len(excluded)} layer(s) excluded from kernel CI "
+                  f"(negative tests — see validation_layers in sysml-project.yml):")
+            for e in excluded:
+                print(f"      - {e}")
+            print()
+        validate(name, kernel_layers)
 
 
 if __name__ == "__main__":

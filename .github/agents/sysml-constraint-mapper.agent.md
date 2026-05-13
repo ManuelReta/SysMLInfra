@@ -104,3 +104,90 @@ constraint def {constraint.name} {
 - DO NOT assign values to system instance attributes
 - Emit only the constraint structure — the specific numeric bindings are AnalysisMapper's job
 - Signal completion: `lib/build-state.json` `"phaseStatus.phase3.constraints": "complete"`
+
+---
+
+## FMEA Extension — Reliability and Risk Constraint Defs
+<!-- Added: STPA/FMEA/RAAML integration -->
+
+When `docs/ingested/fmea/fmea-constraints.json` exists:
+
+### Additional Input Contract (FMEA equations → constraint def)
+
+```json
+{
+  "name": "RiskPriorityNumber",
+  "equation": "rpn = severity * occurrence * detection",
+  "parameters": [
+    { "name": "rpn", "role": "output", "type": "Real" },
+    { "name": "severity", "role": "input", "type": "Integer" },
+    { "name": "occurrence", "role": "input", "type": "Integer" },
+    { "name": "detection", "role": "input", "type": "Integer" }
+  ],
+  "source_doc": "FMEA-BPS-002",
+  "section": "2.1"
+}
+```
+
+### FMEA Output Pattern
+
+Emit in `FMEA.sysml` inside package `'BilgePump::FMEA'`.
+Annotate with `#FaultTree` metadata if a fault tree top event is provided:
+
+```sysml
+// =============================================================================
+// {constraint.name}
+// {constraint.description}
+// SOURCE: {source_doc} §{section} — standard: {constraint.standard}
+// NOTE: {constraint.verification_note}
+// =============================================================================
+#FaultTree {
+    ftId      = "FT-{sequence}";
+    topEvent  = "{constraint related top event if applicable}";
+    gate      = "AND";
+    sourceDoc = "{source_doc}";
+    section   = "{section}";
+}
+constraint def {constraint.name} {
+    attribute {output_param.name} : {output_param.type};  // output: {output_param.description}
+    attribute {input_param.name}  : {input_param.type};   // input:  {input_param.description}
+    ...
+
+    assert constraint {
+        {equation rhs formatted as SysML expression}
+    }
+}
+```
+
+**Standard FMEA constraints to emit** (from `fmea-constraints.json`):
+- `RiskPriorityNumber`: `rpn = severity * occurrence * detection` (MIL-STD-1629A)
+- `ParallelRedundancyFailureRate`: `lambda_sys = lambda_A * lambda_B` (IEC 61508-6)
+- `NPSHMarginCheck`: `npsh_available >= npsh_required + npsh_margin` (Hydraulic Institute)
+
+**FUTURE MCP comment to add**:
+```
+<!-- FUTURE: A FMEA tool MCP (ReliaSoft XFMEA, Windchill FMEA module, or APIS IQ-FMEA)
+     would pull failure mode data and reliability equations directly from the FMEA database
+     rather than requiring a pre-exported JSON, eliminating transcription errors and
+     enabling live sync with the FMEA as the design evolves.
+     A reliability data library MCP (MIL-HDBK-217F, Telcordia SR-332) would provide
+     component failure rates (lambda values) by part number for the parallel failure
+     rate constraint, replacing hard-coded values with traceable data. -->
+```
+
+### Simulink Controller Timing Constraints
+
+When `docs/ingested/constraints/simulink-controller-model.json` exists:
+Emit controller timing `constraint def` blocks (e.g., `ControllerResponseTimeConstraint`,
+`FailoverSwitchTimeConstraint`) alongside the pump flow physics constraints.
+
+### Phase 3.5 Completion
+
+After emitting FMEA constraint defs, write to `lib/build-state.json`:
+```json
+"phaseStatus": {
+    "phase3_5": {
+        "fmea": "complete"
+    }
+}
+```

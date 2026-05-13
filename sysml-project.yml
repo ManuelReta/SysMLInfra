@@ -1,26 +1,47 @@
 # =============================================================================
 # sysml-project.yml — SysML v2 project manifest
 #
-# This file is the single place that declares which .sysml files exist in this
-# project and the order in which they must be executed/committed.
+# Two keys are consumed by the tooling:
 #
-# The CI/CD pipeline (validate-pr.yml, publish-to-api.yml) and commit.sh all
-# read this file. To adapt this infrastructure for a new SysML v2 project:
-#   1. Change 'name' and 'description'
-#   2. Replace the 'layers' list with your own .sysml files in dependency order
-#      (definitions before usages — e.g. library types before architecture)
+#   layers            — COMPLETE layer list in strict import order.
+#                       Used by commit.sh (POST to API) and ci_kernel_validate.py
+#                       --dry-run (file-existence check).
+#                       Imported-by-nothing must come first (RAAML has no imports).
 #
-# Rules for 'layers':
-#   - List files in strict import order (imported-by-nothing first)
-#   - Use only flat filenames (no subdirectory paths)
-#   - Each file must be at the repository root
+#   validation_layers — POSITIVE-TEST subset for kernel execution in CI.
+#                       Used by ci_kernel_validate.py (full kernel run).
+#                       Must exclude any layer whose analysis def blocks contain
+#                       intentional VIOLATED assertions (negative tests).
+#                       FMEA.sysml and UQ.sysml are excluded here — they are
+#                       validated separately by bilgepump/Safety.ipynb.
+#                       Omit this key to run all layers (may produce expected failures).
+#
+# To adapt for a new project: change 'name', 'description', and both lists.
 # =============================================================================
 
 name: BilgePumpSystem
 description: "SysML v2 bilge pump verification — IMO MARPOL, DNV, IEC 60945, SOLAS"
 
+# All 8 layers — full model including safety, FMEA, and UQ extensions.
 layers:
+  - bilgepump/RAAML.sysml
   - bilgepump/Library.sysml
   - bilgepump/Architecture.sysml
   - bilgepump/Requirements.sysml
   - bilgepump/Analysis.sysml
+  - bilgepump/Safety.sysml
+  - bilgepump/FMEA.sysml
+  - bilgepump/UQ.sysml
+
+# Positive-test subset for kernel CI execution.
+# FMEA.sysml: contains 4 negative-test analysis defs — designed to produce
+#             VIOLATED assertions (FM-S-001, FM-PA-002, FM-PB-001, FM-C-001).
+# UQ.sysml:   UQ_Sweep_10 (combined 3σ extreme) produces a VIOLATED assertion
+#             by design. Both files are syntax-validated via --dry-run.
+validation_layers:
+  - bilgepump/RAAML.sysml
+  - bilgepump/Library.sysml
+  - bilgepump/Architecture.sysml
+  - bilgepump/Requirements.sysml
+  - bilgepump/Analysis.sysml
+  - bilgepump/Safety.sysml

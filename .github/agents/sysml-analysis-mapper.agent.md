@@ -125,3 +125,126 @@ analysis def {analysis.name} {
 - DO NOT invent test values — only use values from the ingested test documents or staged attributes
 - Flag (with TODO comment) any `assert requirement` whose requirement def does not yet exist
 - Signal completion: `lib/build-state.json` `"phaseStatus.phase5": "complete"`
+
+---
+
+## FMEA Negative Tests Extension
+<!-- Added: STPA/FMEA/RAAML integration -->
+
+When `docs/ingested/fmea/fmea-scenarios.json` exists:
+
+### Additional Input Contract (FMEA failure scenarios → negative-test analysis def)
+
+```json
+{
+  "id": "FMEA-SC-001",
+  "name": "FMEA_SensorStuckAtZero",
+  "description": "Inject sensor fail-silent fault",
+  "failure_mode_ref": "FM-S-001",
+  "test_type": "negative",
+  "bindings": [
+    { "path": "sys.sensor.waterLevel", "value": 0.0, "unit": "m" }
+  ],
+  "assert_requirements": ["UCA_002_SensorFailSilent", "DischargeCapacityRequirement"],
+  "expected_result": "UCA_002_VIOLATED DischargeCapacityRequirement_VIOLATED"
+}
+```
+
+### FMEA Negative Test Output Pattern
+
+Emit in `FMEA.sysml` inside package `'BilgePump::FMEA'`. Annotate with `#FailureMode`:
+
+```sysml
+// -------------------------------------------------------------------------
+// {scenario.name}
+// Failure Mode: {failure_mode_ref}
+// Expected: {expected_result}
+// SOURCE: {source_doc} §{section}
+// -------------------------------------------------------------------------
+#FailureMode {
+    fmId            = "{failure_mode_ref}";
+    component       = "{component from fmea table}";
+    instance        = "{component_instance}";
+    failureModeText = "{failure_mode text from fmea table}";
+    failureEffect   = "{failure_effect_system}";
+    severity        = {severity};
+    occurrence      = {occurrence};
+    detection       = {detection};
+    rpn             = {rpn};
+    ucaRef          = "{uca_ref}";
+    hazardRef       = "{hazard_ref}";
+    sourceDoc       = "{source_doc}";
+    section         = "{section}";
+}
+analysis def {scenario.name} {
+    subject sys : {subject_type} {
+        // Fault injection bindings
+        bind {binding.path} = {binding.value};  // {binding.note}
+        ...
+    }
+    // RPN constraint usage (optional — if FMEA constraint defs are present)
+    constraint fmeaRpnCheck : RiskPriorityNumber {
+        bind fmeaRpnCheck.severity   = {severity};
+        bind fmeaRpnCheck.occurrence = {occurrence};
+        bind fmeaRpnCheck.detection  = {detection};
+    }
+    // Expected: {req_name} VIOLATED
+    assert requirement {req_name} : {requirement_def_name} { subject sys; }
+    ...
+}
+```
+
+**Pre-check before emitting**: If `execute` is available, verify that the injected
+binding values produce VIOLATED results for the listed `assert_requirements`:
+- Evaluate each `require constraint` expression with fault-injected values in Python
+- If a "negative test" accidentally produces SATISFIED, flag it with a `// WARNING: expected VIOLATED but pre-check shows SATISFIED — review bindings` comment
+
+### STPA Loss Scenario Negative Tests Extension
+
+When `docs/ingested/hazards/stpa-scenarios.json` exists:
+Follow the same negative test pattern, emitting `analysis def` blocks in `Safety.sysml`
+(not FMEA.sysml) for each STPA loss scenario. These assert UCA requirement defs from Safety.sysml.
+
+### UQ Parametric Sweep Extension
+
+When `docs/ingested/uq/pump-uq-config.json` exists:
+Emit N parametric sweep `analysis def` blocks in `UQ.sysml` inside package `'BilgePump::UQ'`.
+For each sweep point in `uq_data["sweep_points"]`:
+
+```sysml
+analysis def {sweep_point.id} {
+    subject sys : BilgePumpSystem {
+        bind sys.pumpA.flowRate             = {bindings["sys.pumpA.flowRate"]};
+        bind sys.pumpA.efficiency           = {bindings["sys.pumpA.efficiency"]};
+        bind sys.discharge.pipeLossFactor   = {bindings["sys.discharge.pipeLossFactor"]};
+        // Fixed parameters from uq_data["fixed_parameters"]
+        bind sys.pumpB.flowRate             = {fixed["sys.pumpB.flowRate"]};
+        ...
+    }
+    constraint physicsCheck : PumpFlowPhysics {
+        bind physicsCheck.flowRateA      = sys.pumpA.flowRate;
+        bind physicsCheck.flowRateB      = sys.pumpB.flowRate;
+        bind physicsCheck.efficiency     = sys.pumpA.efficiency;
+        bind physicsCheck.pipeLossFactor = sys.discharge.pipeLossFactor;
+        bind physicsCheck.designInflow   = {fixed["designInflow"]};
+    }
+    // Expected: {sweep_point.expected_result}
+    assert requirement dischargeCheck : DischargeCapacityRequirement {
+        subject sys;
+        bind dischargeCheck.designInflow = {fixed["designInflow"]};
+    }
+}
+```
+
+Pre-compute Q_net for each sweep point with Python (`execute`) and confirm predicted
+`expected_result` matches before emitting.
+
+### Phase Completion
+
+After emitting all analysis defs (nominal + FMEA negative tests + STPA scenarios + UQ sweep):
+```json
+"phaseStatus": {
+    "phase5": "complete",
+    "phase7": { "uq": "complete" }
+}
+```

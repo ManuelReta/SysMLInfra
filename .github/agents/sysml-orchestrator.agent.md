@@ -109,9 +109,17 @@ All agents read and write `lib/build-state.json`. Structure:
     "phase1": "pending | running | complete | blocked",
     "phase2": "pending",
     "phase3": "pending",
+    "phase3_5": {
+      "safety": "pending",
+      "fmea":   "pending",
+      "raaml":  "pending"
+    },
     "phase4": "pending | skipped",
     "phase5": "pending",
-    "phase6": "pending"
+    "phase6": "pending",
+    "phase7": {
+      "uq": "pending"
+    }
   }
 }
 ```
@@ -121,3 +129,67 @@ All agents read and write `lib/build-state.json`. Structure:
 - DO NOT advance a phase until its gate condition is verified
 - DO NOT re-queue a failing mapper more than 3 times — escalate to human after that
 - ONLY delegate to agents in the activation list; skip agents with no source documents
+
+---
+
+## Safety Analysis Phase Extension
+<!-- Added: STPA/FMEA/RAAML/UQ integration -->
+
+### Phase 3.5 — Safety Analysis (STPA + FMEA + RAAML)
+
+Phase 3.5 is inserted **between Phase 3 (Requirements + Constraints) and Phase 4 (Allocations)**.
+
+#### Manifest Scan additions (Action 1)
+
+| Ingested directory present | Agents to activate |
+|---|---|
+| `docs/ingested/hazards/` | RequirementMapper (STPA mode) + AnalysisMapper (STPA scenarios mode) |
+| `docs/ingested/fmea/` | ConstraintMapper (FMEA mode) + AnalysisMapper (FMEA negative test mode) |
+| `docs/ingested/uq/` | Phase 7 flow: AnalysisMapper (UQ mode) |
+
+When any of the above directories are non-empty, set in `lib/build-state.json`:
+```json
+"activeAgents": ["RAAMLMapper", "RequirementMapper-STPA", "ConstraintMapper-FMEA", "AnalysisMapper-FMEA", "AnalysisMapper-STPA"]
+```
+
+#### Dependency Graph additions (Action 2)
+
+Extended pipeline with Phase 3.5 and Phase 7:
+
+```
+Phase 1 (PortDefMapper + AttributeDefMapper) [parallel]
+  └─► Phase 2 (PartDefMapper)
+        └─► Phase 3 (RequirementMapper + ConstraintMapper) [parallel]
+              └─► Phase 3.5 (Safety Analysis) ─────────────────────────┐
+                    ├─ RequirementMapper-STPA (writes Safety.sysml)      │
+                    ├─ ConstraintMapper-FMEA  (writes FMEA.sysml)        │
+                    └─ RAAMLMapper            (writes RAAML.sysml)       │
+                          └─► Phase 4 (AllocationMapper)                 │
+                                └─► Phase 5 (AnalysisMapper) ────────────┤
+                                      └─► Phase 6 (TraceabilityAgent     │
+                                                   + VerificationAgent)  │
+                                                         └─► Phase 7 (UQ)◄
+                                                               └─ AnalysisMapper-UQ (writes UQ.sysml)
+```
+
+Phase 7 is **optional and non-blocking** — it only activates when `docs/ingested/uq/` is non-empty
+and runs only after Phase 6 passes.
+
+#### Phase Gate Conditions
+
+**Phase 3.5 gate** (all three must be true to advance to Phase 4):
+1. `Safety.sysml` exists in the bilgepump project directory AND contains ≥ 1 `requirement def` whose
+   name starts with `UCA_`
+2. `FMEA.sysml` exists AND contains ≥ 1 `constraint def` AND ≥ 1 `analysis def`
+3. `RAAML.sysml` exists AND contains ≥ 1 `metadata def` (or `attribute def` in fallback mode)
+
+**Phase 7 gate** (non-blocking — Phase 6 does not wait for Phase 7):
+- `UQ.sysml` exists AND contains ≥ 10 `analysis def` blocks (one per sweep point)
+
+#### Failure Routing for Phase 3.5
+
+If RAAMLMapper fails (metadata def parse error):
+1. Check if Pilot API JAR version supports `metadata def` — look for parse error in commit response
+2. If JAR < 2022-06: re-queue RAAMLMapper with flag `--fallback-mode` (uses `attribute def` instead)
+3. Write `"raamlFallbackMode": true` to `lib/build-state.json` as a warning flag
+4. Proceed to Phase 4 — RAAML annotation absence does not block architecture or analysis phases

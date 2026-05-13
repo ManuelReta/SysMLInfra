@@ -1,0 +1,130 @@
+{
+  "_meta": {
+    "source_tool": "ReliaSoft XFMEA 11",
+    "export_format": "XFMEA Negative Test Scenario Export",
+    "system": "Bilge Pump System",
+    "document_id": "FMEA-BPS-003",
+    "revision": "1.0",
+    "date": "2026-05-13",
+    "description": "Negative test scenarios derived directly from FMEA failure modes. Each scenario is consumed by AnalysisMapper to emit a failure-mode analysis def in FMEA.sysml"
+  },
+  "scenarios": [
+    {
+      "id": "FMEA-SC-001",
+      "name": "FMEA_SensorStuckAtZero",
+      "description": "Inject sensor fail-silent fault — water level reports 0.0 m while system floods",
+      "failure_mode_ref": "FM-S-001",
+      "uca_ref": "UCA-002",
+      "test_type": "negative",
+      "subject_type": "BilgePumpSystem",
+      "subject_instance": "sys",
+      "bindings": [
+        { "path": "sys.sensor.waterLevel",      "value": 0.0,    "unit": "m",    "note": "Stuck-at-zero fault injection — actual bilge level ~0.28 m" },
+        { "path": "sys.controller.triggerLevel_m", "value": 0.25, "unit": "m",   "note": "Nominal trigger level unchanged" },
+        { "path": "sys.controller.responseTime_s", "value": 1.0,  "unit": "s",   "note": "Controller would respond if it received valid signal" },
+        { "path": "sys.pumpA.flowRate",          "value": 0.0,    "unit": "m³/s","note": "Not activated — no trigger received" },
+        { "path": "sys.pumpB.flowRate",          "value": 0.0,    "unit": "m³/s","note": "Not activated — no trigger received" },
+        { "path": "sys.pumpA.efficiency",        "value": 0.82,   "unit": "",    "note": "Nominal if activated" },
+        { "path": "sys.discharge.pipeLossFactor","value": 0.05,   "unit": "",    "note": "Nominal" },
+        { "path": "sys.alarm.activationDelay_s", "value": 999.0,  "unit": "s",   "note": "Alarm never triggered" },
+        { "path": "sys.pumpB.isRedundant",       "value": true,   "unit": "",    "note": "Structurally redundant but not activated" },
+        { "path": "designInflow",                "value": 0.030,  "unit": "m³/s","note": "Damage stability design inflow" }
+      ],
+      "assert_requirements": [
+        "UCA_002_SensorFailSilent",
+        "DischargeCapacityRequirement",
+        "AlarmResponseRequirement"
+      ],
+      "expected_result": "UCA_002_VIOLATED DischargeCapacityRequirement_VIOLATED AlarmResponseRequirement_VIOLATED",
+      "rpn_threshold_check": { "failure_mode_rpn": 240, "threshold": 100, "exceeds": true },
+      "source_doc": "FMEA-BPS-003",
+      "section": "3.1"
+    },
+    {
+      "id": "FMEA-SC-002",
+      "name": "FMEA_PumpACavitation",
+      "description": "Pump A efficiency degraded below 50% due to cavitation — net discharge drops below design inflow",
+      "failure_mode_ref": "FM-PA-002",
+      "uca_ref": null,
+      "test_type": "negative",
+      "subject_type": "BilgePumpSystem",
+      "subject_instance": "sys",
+      "bindings": [
+        { "path": "sys.sensor.waterLevel",      "value": 0.15,   "unit": "m",    "note": "Valid sensor reading" },
+        { "path": "sys.pumpA.flowRate",          "value": 0.025,  "unit": "m³/s","note": "Nominal flow — motor running" },
+        { "path": "sys.pumpA.efficiency",        "value": 0.40,   "unit": "",    "note": "Cavitation-degraded efficiency (< 50%)" },
+        { "path": "sys.pumpB.flowRate",          "value": 0.025,  "unit": "m³/s","note": "Nominal" },
+        { "path": "sys.pumpB.efficiency",        "value": 0.82,   "unit": "",    "note": "Nominal" },
+        { "path": "sys.discharge.pipeLossFactor","value": 0.05,   "unit": "",    "note": "Nominal" },
+        { "path": "sys.alarm.activationDelay_s", "value": 0.5,    "unit": "s",   "note": "Alarm OK" },
+        { "path": "sys.pumpB.isRedundant",       "value": true,   "unit": "",    "note": "Redundant but also cavitating due to shared bilge conditions" },
+        { "path": "designInflow",                "value": 0.030,  "unit": "m³/s","note": "Design inflow unchanged" }
+      ],
+      "assert_requirements": [
+        "DischargeCapacityRequirement"
+      ],
+      "expected_result": "DischargeCapacityRequirement_VIOLATED",
+      "physics_note": "Q_net = (0.025 + 0.025) * 0.40 * (1 - 0.05) = 0.019 m³/s < 0.030 m³/s VIOLATED",
+      "rpn_threshold_check": { "failure_mode_rpn": 210, "threshold": 100, "exceeds": true },
+      "source_doc": "FMEA-BPS-003",
+      "section": "3.2"
+    },
+    {
+      "id": "FMEA-SC-003",
+      "name": "FMEA_PowerBusLoss",
+      "description": "Emergency power bus fault — pumpB loses independent power feed, redundancy requirement violated",
+      "failure_mode_ref": "FM-PB-001",
+      "uca_ref": null,
+      "test_type": "negative",
+      "subject_type": "BilgePumpSystem",
+      "subject_instance": "sys",
+      "bindings": [
+        { "path": "sys.sensor.waterLevel",       "value": 0.15,   "unit": "m",    "note": "Normal operation" },
+        { "path": "sys.power.nominalVoltage",     "value": 440.0,  "unit": "V",    "note": "Main bus still live" },
+        { "path": "sys.power.redundancyActive",   "value": false,  "unit": "",     "note": "Emergency bus fault — redundancy not active" },
+        { "path": "sys.pumpA.flowRate",           "value": 0.025,  "unit": "m³/s","note": "Primary pump operating" },
+        { "path": "sys.pumpB.flowRate",           "value": 0.025,  "unit": "m³/s","note": "Running on main bus (not independent)" },
+        { "path": "sys.pumpB.isRedundant",        "value": false,  "unit": "",     "note": "Power feed not independent — redundancy violated" },
+        { "path": "sys.alarm.activationDelay_s",  "value": 0.5,    "unit": "s",    "note": "Alarm OK" },
+        { "path": "sys.discharge.pipeLossFactor", "value": 0.05,   "unit": "",     "note": "Nominal" },
+        { "path": "designInflow",                 "value": 0.030,  "unit": "m³/s","note": "Nominal" }
+      ],
+      "assert_requirements": [
+        "PumpRedundancyRequirement"
+      ],
+      "expected_result": "PumpRedundancyRequirement_VIOLATED",
+      "rpn_threshold_check": { "failure_mode_rpn": 72, "threshold": 100, "exceeds": false, "note": "RPN below threshold but severity=9 warrants review" },
+      "source_doc": "FMEA-BPS-003",
+      "section": "3.3"
+    },
+    {
+      "id": "FMEA-SC-004",
+      "name": "FMEA_ControllerHang",
+      "description": "Controller software hang — no commands issued, response time effectively infinite",
+      "failure_mode_ref": "FM-C-001",
+      "uca_ref": "UCA-001",
+      "test_type": "negative",
+      "subject_type": "BilgePumpSystem",
+      "subject_instance": "sys",
+      "bindings": [
+        { "path": "sys.sensor.waterLevel",       "value": 0.28,   "unit": "m",    "note": "Valid — rising flood" },
+        { "path": "sys.controller.responseTime_s","value": 9999.0,"unit": "s",    "note": "Controller hung — no response" },
+        { "path": "sys.pumpA.flowRate",           "value": 0.0,    "unit": "m³/s","note": "Not activated" },
+        { "path": "sys.pumpB.flowRate",           "value": 0.0,    "unit": "m³/s","note": "Not activated" },
+        { "path": "sys.alarm.activationDelay_s",  "value": 9999.0, "unit": "s",   "note": "Alarm output frozen" },
+        { "path": "sys.pumpB.isRedundant",        "value": true,   "unit": "",     "note": "Structurally true but irrelevant — controller hung" },
+        { "path": "sys.discharge.pipeLossFactor", "value": 0.05,   "unit": "",     "note": "Nominal" },
+        { "path": "designInflow",                 "value": 0.030,  "unit": "m³/s","note": "Nominal" }
+      ],
+      "assert_requirements": [
+        "UCA_001_ControllerNoActivatePumpA",
+        "DischargeCapacityRequirement",
+        "AlarmResponseRequirement"
+      ],
+      "expected_result": "UCA_001_VIOLATED DischargeCapacityRequirement_VIOLATED AlarmResponseRequirement_VIOLATED",
+      "rpn_threshold_check": { "failure_mode_rpn": 140, "threshold": 100, "exceeds": true },
+      "source_doc": "FMEA-BPS-003",
+      "section": "3.4"
+    }
+  ]
+}

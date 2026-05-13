@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 # =============================================================================
-# verify.sh — Verify requirements against the committed model.
+# verify.sh — Verify the base 4-layer model requirements against the
+#             committed SysML v2 API project.
+#
+# SCOPE: This script evaluates the four original regulatory requirements
+# (BPS-REQ-001 through BPS-REQ-004) defined in Requirements.sysml.
+# For the extended safety layers (STPA UCA requirements, FMEA negative tests,
+# and UQ parametric sweep), use bilgepump/Safety.ipynb instead:
+#
+#   bash run.sh safety   → opens Safety.ipynb
 #
 # How this works:
 #   The SST SysML v2 REST API (sysml2.intercax.com:9000) is a JSON-LD model
@@ -9,11 +17,13 @@
 #   the text verbatim. The /analysis-evaluations endpoint is not available.
 #
 #   This script therefore does two things:
-#     1. PERSISTENCE CHECK — confirm the project and all 4 commits exist on
-#        the SST API (proves the model was uploaded and is retrievable).
-#     2. CONSTRAINT EVALUATION — parse Analysis.sysml locally and evaluate all
-#        'require constraint' expressions in Python. This is the same logic as
-#        check-requirements-manually.sh but called directly from here.
+#     1. PERSISTENCE CHECK — confirm the project and all committed layers exist
+#        on the SST API (proves the model was uploaded and is retrievable).
+#     2. CONSTRAINT EVALUATION — parse Requirements.sysml and Analysis.sysml
+#        locally and evaluate all 'require constraint' expressions in Python.
+#        NOTE: This is a Python regex + eval approximation, NOT the SysML v2
+#        kernel. It works reliably for arithmetic and boolean expressions.
+#        See scripts/ci_kernel_validate.py for kernel-based validation.
 #
 # Usage:
 #   bash verify.sh             # positive test (nominal values from Analysis.sysml)

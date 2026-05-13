@@ -1,0 +1,24 @@
+{
+  "_meta": {
+    "source_tool": "AVEVA E3D / AutoCAD P&ID — Connection Table Export",
+    "export_format": "P&ID Connection JSON v1.3",
+    "system": "Bilge Pump System",
+    "document_id": "PID-BPS-001",
+    "revision": "1.4",
+    "date": "2026-05-13",
+    "description": "11 signal/flow connections from the P&ID and electrical schematic for the bilge pump system. Source for ConnectMapper."
+  },
+  "connections": [
+    { "id": "CON-001", "description": "Water level: Sensor → Controller", "from_instance": "sensor",     "from_port": "levelOut",     "to_instance": "controller", "to_port": "levelIn",     "signal_type": "analog_level", "source_doc": "PID-BPS-001", "section": "4.1" },
+    { "id": "CON-002", "description": "Pump A command: Controller → PumpA", "from_instance": "controller", "from_port": "pumpAControl", "to_instance": "pumpA",      "to_port": "controlIn",  "signal_type": "discrete_control", "source_doc": "PID-BPS-001", "section": "4.2" },
+    { "id": "CON-003", "description": "Pump B command: Controller → PumpB", "from_instance": "controller", "from_port": "pumpBControl", "to_instance": "pumpB",      "to_port": "controlIn",  "signal_type": "discrete_control", "source_doc": "PID-BPS-001", "section": "4.3" },
+    { "id": "CON-004", "description": "Power A: PowerSupply → PumpA",       "from_instance": "power",      "from_port": "powerOutA",    "to_instance": "pumpA",      "to_port": "powerIn",    "signal_type": "electrical_3phase", "source_doc": "PID-BPS-001", "section": "4.4" },
+    { "id": "CON-005", "description": "Power B: PowerSupply → PumpB",       "from_instance": "power",      "from_port": "powerOutB",    "to_instance": "pumpB",      "to_port": "powerIn",    "signal_type": "electrical_3phase", "source_doc": "PID-BPS-001", "section": "4.5" },
+    { "id": "CON-006", "description": "Flow A: PumpA → DischargeLine",       "from_instance": "pumpA",      "from_port": "flowOut",      "to_instance": "discharge",  "to_port": "flowInA",   "signal_type": "fluid_flow", "source_doc": "PID-BPS-001", "section": "4.6" },
+    { "id": "CON-007", "description": "Flow B: PumpB → DischargeLine",       "from_instance": "pumpB",      "from_port": "flowOut",      "to_instance": "discharge",  "to_port": "flowInB",   "signal_type": "fluid_flow", "source_doc": "PID-BPS-001", "section": "4.7" },
+    { "id": "CON-008", "description": "Status: Controller → UI",              "from_instance": "controller", "from_port": "statusOut",    "to_instance": "ui",         "to_port": "statusIn",  "signal_type": "status_string", "source_doc": "PID-BPS-001", "section": "4.8" },
+    { "id": "CON-009", "description": "Override: UI → Controller",            "from_instance": "ui",         "from_port": "overrideOut",  "to_instance": "controller", "to_port": "overrideIn","signal_type": "discrete_boolean", "source_doc": "PID-BPS-001", "section": "4.9" },
+    { "id": "CON-010", "description": "Alarm trigger: Controller → Alarm",    "from_instance": "controller", "from_port": "alarmOut",     "to_instance": "alarm",      "to_port": "alarmIn",   "signal_type": "discrete_boolean", "source_doc": "PID-BPS-001", "section": "4.10" },
+    { "id": "CON-011", "description": "Alarm notify: Alarm → UI",             "from_instance": "alarm",      "from_port": "notifyOut",    "to_instance": "ui",         "to_port": "notifyIn",  "signal_type": "discrete_boolean", "source_doc": "PID-BPS-001", "section": "4.11" }
+  ]
+}

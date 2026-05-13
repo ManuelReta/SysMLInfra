@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=1280">
+  <title>SysMLInfra — Workflow Overview</title>
+  <style>
+    /* ── Reset ─────────────────────────────────────────────────────────── */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #1e2230;
+      font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+      padding: 48px 0 64px;
+    }
+
+    /* ── Slide canvas ───────────────────────────────────────────────────── */
+    .slide {
+      width: 1280px;
+      height: 720px;
+      background: #ffffff;
+      margin: 0 auto 72px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 16px 56px rgba(0,0,0,0.6);
+    }
+
+    /* ── Header band ────────────────────────────────────────────────────── */
+    .hd {
+      background: #0b2340;
+      height: 72px;
+      padding: 0 52px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      flex-shrink: 0;
+    }
+    .hd-num {
+      font-size: 11px; font-weight: 800; letter-spacing: 3px;
+      text-transform: uppercase; color: #e8882a; white-space: nowrap;
+    }
+    .hd-rule { width: 2px; height: 30px; background: #e8882a; flex-shrink: 0; }
+    .hd-title {
+      font-size: 22px; font-weight: 300; color: #ffffff; letter-spacing: 0.2px;
+    }
+    .hd-title b { font-weight: 700; }
+
+    /* ── Footer strip ───────────────────────────────────────────────────── */
+    .ft {
+      height: 46px; background: #f0f4f8;
+      border-top: 3px solid #e8882a;
+      display: flex; align-items: center;
+      padding: 0 52px; gap: 10px;
+      font-size: 11.5px; color: #5a6878; flex-shrink: 0;
+    }
+    .ft b { color: #0b2340; }
+    .ft-sep { color: #c8d0d8; }
+
+    /* ── Shared utilities ───────────────────────────────────────────────── */
+    .tag {
+      font-size: 10px; font-weight: 800; letter-spacing: 1.6px;
+      text-transform: uppercase; margin-bottom: 5px;
+    }
+    code {
+      font-family: 'Consolas','Courier New',monospace;
+      font-size: 11px; background: #e8eff6;
+      padding: 1px 6px; border-radius: 3px; color: #0b2340;
+    }
+
+    /* ══════════════════════════════════════════════════════════════════════
+       SLIDE 1
+    ══════════════════════════════════════════════════════════════════════ */
+    .s1-left {
+      width: 400px; flex-shrink: 0;
+      background: #f0f4f8;
+      border-right: 1px solid #d0dce8;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .s1-right {
+      flex: 1; padding: 26px 44px 20px;
+      display: flex; flex-direction: column; gap: 13px;
+    }
+    .kv-row { display: flex; gap: 13px; }
+    .kv {
+      flex: 1; background: #f0f4f8;
+      border: 1.5px solid #c4d4e4; border-radius: 6px;
+      padding: 11px 15px;
+    }
+    .kv .tag { color: #4a90c4; }
+    .kv p { font-size: 12.5px; color: #18202c; line-height: 1.55; }
+    .kv.amb { border-color: #e8882a; background: #fef6ee; }
+    .kv.amb .tag { color: #b85c10; }
+    .kv.grn { border-color: #2a7a45; background: #edf6f0; }
+    .kv.grn .tag { color: #1e6035; }
+    .hero-card {
+      background: #0b2340; border-radius: 6px;
+      padding: 14px 20px;
+      display: flex; align-items: center; gap: 16px;
+    }
+    .hero-card .hc-icon { font-size: 30px; flex-shrink: 0; }
+    .hero-card .hc-body { color: #fff; font-size: 13px; line-height: 1.6; }
+    .hero-card .hc-body strong { color: #e8882a; }
+    .hero-card .hc-body .tag { color: #7aaac8; margin-bottom: 2px; }
+    .feat-row { display: flex; gap: 13px; }
+    .feat {
+      flex: 1; border-left: 3px solid #4a90c4;
+      background: #f8fafc; padding: 8px 13px;
+      border-radius: 0 5px 5px 0;
+    }
+    .feat.a { border-color: #e8882a; }
+    .feat.g { border-color: #2a7a45; }
+    .feat .tag { color: #3a6080; }
+    .feat.a .tag { color: #904010; }
+    .feat.g .tag { color: #1e6035; }
+    .feat p { font-size: 12.5px; color: #18202c; line-height: 1.5; }
+
+    /* ══════════════════════════════════════════════════════════════════════
+       SLIDE 2
+    ══════════════════════════════════════════════════════════════════════ */
+    .s2-bd {
+      flex-direction: column;
+      padding: 22px 52px 16px; gap: 16px;
+    }
+    .pipe-row { display: flex; align-items: stretch; }
+    .pipe-box {
+      flex: 1; background: #f0f4f8;
+      border: 1.5px solid #c4d4e4; border-radius: 8px;
+      padding: 13px 11px 11px;
+      display: flex; flex-direction: column;
+      align-items: center; text-align: center;
+    }
+    .pipe-box.edit { background: #eaf2fa; border-color: #4a90c4; }
+    .pipe-box.gate { background: #fef5e8; border-color: #e8882a; }
+    .pipe-box.api  { background: #eaf5ef; border-color: #2a7a45; }
+    .pipe-icon { font-size: 24px; margin-bottom: 4px; }
+    .pipe-box .tag { margin-bottom: 3px; color: #4a5a6a; }
+    .pipe-box.edit .tag { color: #1a5080; }
+    .pipe-box.gate .tag { color: #904010; }
+    .pipe-box.api  .tag { color: #1e6035; }
+    .pipe-box p { font-size: 11.5px; color: #18202c; line-height: 1.4; }
+    .pipe-arr {
+      align-self: center; font-size: 20px;
+      color: #4a90c4; padding: 0 7px; flex-shrink: 0;
+    }
+    .gate-row { display: flex; gap: 14px; }
+    .gc {
+      flex: 1; border-radius: 6px; padding: 13px 17px; border: 1.5px solid;
+    }
+    .gc.fast   { background: #fef8f0; border-color: #e8882a; }
+    .gc.kernel { background: #f0f4ff; border-color: #4a90c4; }
+    .gc .tag { margin-bottom: 5px; }
+    .gc.fast   .tag { color: #904010; }
+    .gc.kernel .tag { color: #1a5080; }
+    .gc .gc-name { font-size: 13.5px; font-weight: 700; color: #0b2340; margin-bottom: 7px; }
+    .gc ul { list-style: none; font-size: 12px; color: #18202c; line-height: 1.85; }
+    .gc ul li::before  { content: "✓  "; color: #2a7a45; font-weight: 800; }
+    .gc ul li.no::before { content: "✗  "; color: #b83020; }
+    .scope-col {
+      width: 218px; flex-shrink: 0;
+      background: #f0f4f8; border: 1.5px solid #c4d4e4;
+      border-radius: 6px; padding: 13px 15px;
+    }
+    .scope-col .tag { color: #0b2340; margin-bottom: 8px; }
+    .layer-line {
+      font-size: 11.5px; color: #18202c; line-height: 1.9;
+      display: flex; align-items: center; gap: 7px;
+    }
+    .layer-line .ok  { color: #2a7a45; font-weight: 700; font-size: 12px; }
+    .layer-line .warn { color: #b05010; font-weight: 700; font-size: 12px; }
+    .s2-principle {
+      background: #0b2340; border-radius: 6px;
+      padding: 10px 20px; font-size: 12.5px; color: #fff;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .s2-principle .icon { font-size: 18px; flex-shrink: 0; }
+    .s2-principle em { color: #e8882a; font-style: normal; font-weight: 700; }
+
+    /* ══════════════════════════════════════════════════════════════════════
+       SLIDE 3
+    ══════════════════════════════════════════════════════════════════════ */
+    .s3-left {
+      flex: 1; padding: 20px 30px 16px;
+      display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .s3-right {
+      width: 300px; flex-shrink: 0;
+      background: #f0f4f8; border-left: 1.5px solid #d0dce8;
+      padding: 20px 20px 16px;
+      display: flex; flex-direction: column; gap: 9px;
+    }
+    .ch { display: flex; align-items: flex-start; gap: 11px; }
+    .ch-num {
+      width: 26px; height: 26px; border-radius: 50%;
+      background: #0b2340; color: #fff;
+      font-size: 12px; font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; margin-top: 4px;
+    }
+    .ch-num.sat { background: #2a7a45; }
+    .ch-box {
+      flex: 1; border: 1.5px solid #c4d4e4;
+      border-radius: 6px; padding: 7px 13px; background: #fff;
+    }
+    .ch-box .tag { color: #4a90c4; margin-bottom: 1px; }
+    .ch-box .ch-name { font-size: 13px; font-weight: 600; color: #18202c; }
+    .ch-box .ch-code {
+      font-family: 'Consolas','Courier New',monospace;
+      font-size: 11px; color: #2a4a6a; background: #f0f4f8;
+      padding: 2px 7px; border-radius: 3px;
+      display: inline-block; margin-top: 3px;
+    }
+    .ch-box.sat { border-color: #2a7a45; background: #eaf5ef; }
+    .ch-box.sat .tag { color: #2a7a45; }
+    .ch-box.sat .ch-name { color: #0e3a1e; font-size: 14px; }
+    .ch-conn { padding-left: 18px; font-size: 14px; color: #4a90c4; line-height: 1; margin: 1px 0; }
+    .s3-right .tag { color: #0b2340; padding-bottom: 6px; border-bottom: 2px solid #e8882a; }
+    .ev {
+      border-radius: 5px; padding: 8px 11px;
+      font-size: 12px; line-height: 1.5;
+    }
+    .ev .tag { border: none; padding-bottom: 0; margin-bottom: 3px; }
+    .ev.stpa { background: #f0f0ff; border-left: 3px solid #7070d0; }
+    .ev.stpa .tag { color: #5050b0; }
+    .ev.fmea { background: #fff4ef; border-left: 3px solid #d06828; }
+    .ev.fmea .tag { color: #904018; }
+    .ev.uq   { background: #eef6ff; border-left: 3px solid #4a90c4; }
+    .ev.uq   .tag { color: #1a5080; }
+    .ev p { color: #18202c; }
+    .trace-note {
+      margin-top: auto; font-size: 11px; color: #4a6a8a;
+      line-height: 1.55; padding-top: 8px;
+      border-top: 1px solid #d0dce8;
+    }
+    .trace-note strong { color: #0b2340; }
+
+    /* ── Print ──────────────────────────────────────────────────────────── */
+    @media print {
+      body { background: white; padding: 0; }
+      .slide { margin: 0; box-shadow: none; page-break-after: always; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     SLIDE 1 — SysML v2 as Engineering Single Source of Truth
+════════════════════════════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="hd">
+    <span class="hd-num">01 / 03</span>
+    <div class="hd-rule"></div>
+    <span class="hd-title">SysML v2 as the <b>Engineering Single Source of Truth</b></span>
+  </div>
+
+  <div class="bd" style="display:flex; overflow:hidden; flex:1;">
+
+    <!-- Hub diagram -->
+    <div class="s1-left">
+      <svg width="380" height="344" viewBox="0 0 380 344" aria-label="Hub and spoke: SysML v2 at center, six engineering tools feeding in">
+        <defs>
+          <marker id="arr" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+            <polygon points="0 0, 7 3.5, 0 7" fill="#4a90c4"/>
+          </marker>
+        </defs>
+        <!-- Dashed spokes (drawn first, nodes appear on top) -->
+        <line x1="190" y1="54"  x2="190" y2="143" stroke="#4a90c4" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arr)"/>
+        <line x1="323" y1="112" x2="242" y2="157" stroke="#4a90c4" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arr)"/>
+        <line x1="323" y1="232" x2="242" y2="196" stroke="#4a90c4" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arr)"/>
+        <line x1="190" y1="289" x2="190" y2="209" stroke="#4a90c4" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arr)"/>
+        <line x1="57"  y1="232" x2="138" y2="196" stroke="#4a90c4" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arr)"/>
+        <line x1="57"  y1="112" x2="138" y2="157" stroke="#4a90c4" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arr)"/>
+
+        <!-- Center hub -->
+        <rect x="138" y="143" width="104" height="66" rx="8" fill="#0b2340"/>
+        <text x="190" y="163" text-anchor="middle" fill="#ffffff" font-size="14" font-weight="700" font-family="Segoe UI,Arial">SysML v2</text>
+        <text x="190" y="180" text-anchor="middle" fill="#ffffff" font-size="14" font-weight="700" font-family="Segoe UI,Arial">Model</text>
+        <text x="190" y="200" text-anchor="middle" fill="#e8882a" font-size="10" font-family="Segoe UI,Arial">SST API  ·  8 layers</text>
+
+        <!-- Node 1: top — Requirements DB -->
+        <rect x="143" y="10" width="94" height="44" rx="5" fill="#e8f0f8" stroke="#1a5f9e" stroke-width="1.5"/>
+        <text x="190" y="28" text-anchor="middle" fill="#0b2340" font-size="11" font-weight="700" font-family="Segoe UI,Arial">Requirements</text>
+        <text x="190" y="44" text-anchor="middle" fill="#4a6a8a" font-size="10" font-family="Segoe UI,Arial">DB (DOORS / Jama)</text>
+
+        <!-- Node 2: top-right — Simulation -->
+        <rect x="279" y="68" width="94" height="44" rx="5" fill="#e8f0f8" stroke="#1a5f9e" stroke-width="1.5"/>
+        <text x="326" y="86" text-anchor="middle" fill="#0b2340" font-size="11" font-weight="700" font-family="Segoe UI,Arial">Simulation</text>
+        <text x="326" y="102" text-anchor="middle" fill="#4a6a8a" font-size="10" font-family="Segoe UI,Arial">Simulink / Modelica</text>
+
+        <!-- Node 3: bottom-right — FMEA -->
+        <rect x="279" y="210" width="94" height="44" rx="5" fill="#fff4ef" stroke="#d06828" stroke-width="1.5"/>
+        <text x="326" y="228" text-anchor="middle" fill="#0b2340" font-size="11" font-weight="700" font-family="Segoe UI,Arial">FMEA Tool</text>
+        <text x="326" y="244" text-anchor="middle" fill="#4a6a8a" font-size="10" font-family="Segoe UI,Arial">ReliaSoft / XFMEA</text>
+
+        <!-- Node 4: bottom — STPA -->
+        <rect x="143" y="289" width="94" height="44" rx="5" fill="#f0f0ff" stroke="#7070d0" stroke-width="1.5"/>
+        <text x="190" y="307" text-anchor="middle" fill="#0b2340" font-size="11" font-weight="700" font-family="Segoe UI,Arial">STPA Tool</text>
+        <text x="190" y="323" text-anchor="middle" fill="#4a6a8a" font-size="10" font-family="Segoe UI,Arial">XSTAMPP / STAMP</text>
+
+        <!-- Node 5: bottom-left — BOM/CAD -->
+        <rect x="7" y="210" width="94" height="44" rx="5" fill="#e8f0f8" stroke="#1a5f9e" stroke-width="1.5"/>
+        <text x="54" y="228" text-anchor="middle" fill="#0b2340" font-size="11" font-weight="700" font-family="Segoe UI,Arial">BOM / CAD</text>
+        <text x="54" y="244" text-anchor="middle" fill="#4a6a8a" font-size="10" font-family="Segoe UI,Arial">CATIA / SolidWorks</text>
+
+        <!-- Node 6: top-left — CFD/FEA -->
+        <rect x="7" y="68" width="94" height="44" rx="5" fill="#e8f0f8" stroke="#1a5f9e" stroke-width="1.5"/>
+        <text x="54" y="86" text-anchor="middle" fill="#0b2340" font-size="11" font-weight="700" font-family="Segoe UI,Arial">CFD / FEA</text>
+        <text x="54" y="102" text-anchor="middle" fill="#4a6a8a" font-size="10" font-family="Segoe UI,Arial">OpenFOAM / ANSYS</text>
+      </svg>
+    </div>
+
+    <!-- Right panel -->
+    <div class="s1-right">
+
+      <div class="kv-row">
+        <div class="kv">
+          <div class="tag">Today — JSON Exports</div>
+          <p>Each tool exports parameter values as JSON.<br>
+             Copilot agents read them and emit SysML v2 <code>bind</code> statements.<br>
+             Examples: <code>pumpA.flowRate&nbsp;=&nbsp;0.025</code> from CFD,<br>
+             <code>efficiency&nbsp;=&nbsp;0.82</code> from Simulink.</p>
+        </div>
+        <div class="kv amb">
+          <div class="tag">Future — Live MCP Feeds</div>
+          <p>Model Context Protocol (MCP) servers will let each tool<br>
+             push parameter updates directly into the SysML v2 model<br>
+             without manual export — closing the loop in real time.</p>
+        </div>
+      </div>
+
+      <div class="hero-card">
+        <div class="hc-icon">🔗</div>
+        <div class="hc-body">
+          <div class="tag">The Centre Node</div>
+          One <strong>SysML v2 project UUID</strong> on the public SST API is the version anchor for all disciplines.
+          Structural, safety, reliability, and simulation data share one parametric model and one controlled vocabulary.
+          Any team queries the same endpoint — no reconciliation required.
+        </div>
+      </div>
+
+      <div class="feat-row">
+        <div class="feat">
+          <div class="tag">Standardised Language</div>
+          <p>SysML v2 is an OMG standard. Every <code>part def</code>, <code>attribute def</code>,
+             and <code>requirement def</code> is machine-readable and tool-independent.</p>
+        </div>
+        <div class="feat a">
+          <div class="tag">Parametric Analysis</div>
+          <p>Each <code>analysis def</code> binds exact numeric values from tool outputs
+             and evaluates physics constraints —<br>no manual number-passing.</p>
+        </div>
+        <div class="feat g">
+          <div class="tag">Traceable to Standards</div>
+          <p>Every requirement carries a source-doc reference (SOLAS, MARPOL, DNV, IEC).
+             Every bind value carries a source-tool annotation.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="ft">
+    <b>Architecture:</b> 6 engineering tools feed parametric values IN.
+    <span class="ft-sep">|</span>
+    SysML v2 evaluates assertions and outputs SATISFIED / VIOLATED evidence.
+    <span class="ft-sep">|</span>
+    One model. One truth. Every discipline.
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     SLIDE 2 — Git-Gated CI/CD Pipeline
+════════════════════════════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="hd">
+    <span class="hd-num">02 / 03</span>
+    <div class="hd-rule"></div>
+    <span class="hd-title"><b>Model-as-Code:</b> Git-Gated, Kernel-Validated, API-Published</span>
+  </div>
+
+  <div class="bd s2-bd">
+
+    <!-- Pipeline flow row -->
+    <div class="pipe-row">
+      <div class="pipe-box edit">
+        <div class="pipe-icon">✏️</div>
+        <div class="tag">Engineer</div>
+        <p>Edits one or more<br><code>.sysml</code> layer files</p>
+      </div>
+      <div class="pipe-arr">→</div>
+      <div class="pipe-box">
+        <div class="pipe-icon">📤</div>
+        <div class="tag">git push</div>
+        <p>Opens a Pull Request<br>targeting <code>main</code></p>
+      </div>
+      <div class="pipe-arr">→</div>
+      <div class="pipe-box gate">
+        <div class="pipe-icon">⚙️</div>
+        <div class="tag">CI Gates</div>
+        <p>Two automated checks<br>must pass — see below</p>
+      </div>
+      <div class="pipe-arr">→</div>
+      <div class="pipe-box">
+        <div class="pipe-icon">🔀</div>
+        <div class="tag">merge main</div>
+        <p>PR unblocked only after<br>both gates are green</p>
+      </div>
+      <div class="pipe-arr">→</div>
+      <div class="pipe-box api">
+        <div class="pipe-icon">☁️</div>
+        <div class="tag">API Published</div>
+        <p>All 8 layers posted to<br>SysML v2 SST API</p>
+      </div>
+    </div>
+
+    <!-- Gate detail row + scope column -->
+    <div style="display:flex; gap:14px; flex:1;">
+
+      <div class="gate-row" style="flex:1;">
+        <div class="gc fast">
+          <div class="tag">Gate 1 — check-manifest</div>
+          <div class="gc-name">Fast file check  ≈ 4 s  ·  stdlib Python only</div>
+          <ul>
+            <li>All 8 layer files exist at declared paths</li>
+            <li><code>sysml-project.yml</code> is syntactically valid</li>
+            <li><code>validation_layers</code> is a subset of <code>layers</code></li>
+            <li>No kernel or conda environment required</li>
+          </ul>
+        </div>
+        <div class="gc kernel">
+          <div class="tag">Gate 2 — validate-sysml</div>
+          <div class="gc-name">Kernel execution  ≈ 52 s  ·  SysML v2 + Java 21</div>
+          <ul>
+            <li>Package names and imports resolve across all 6 layers</li>
+            <li>Port types and conjugates are compatible</li>
+            <li>All 4 regulatory <code>assert requirement</code> pass</li>
+            <li>All 5 STPA UCA requirements satisfied under nominal values</li>
+            <li class="no">FMEA.sysml excluded — negative tests validated by Safety.ipynb</li>
+            <li class="no">UQ.sysml excluded — sweep violations validated by Safety.ipynb</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Layer scope column -->
+      <div class="scope-col">
+        <div class="tag">Validation Scope</div>
+        <div class="layer-line"><span class="ok">✓</span> RAAML.sysml</div>
+        <div class="layer-line"><span class="ok">✓</span> Library.sysml</div>
+        <div class="layer-line"><span class="ok">✓</span> Architecture.sysml</div>
+        <div class="layer-line"><span class="ok">✓</span> Requirements.sysml</div>
+        <div class="layer-line"><span class="ok">✓</span> Analysis.sysml</div>
+        <div class="layer-line"><span class="ok">✓</span> Safety.sysml</div>
+        <div class="layer-line" style="margin-top:6px; padding-top:6px; border-top:1px solid #c4d4e4;">
+          <span class="warn">⚠</span> FMEA.sysml
+        </div>
+        <div style="font-size:10.5px; color:#7a6050; padding-left:20px; line-height:1.4;">
+          4 negative-test <code>analysis def</code><br>→ deliberate VIOLATED assertions
+        </div>
+        <div class="layer-line" style="margin-top:5px;">
+          <span class="warn">⚠</span> UQ.sysml
+        </div>
+        <div style="font-size:10.5px; color:#7a6050; padding-left:20px; line-height:1.4;">
+          UQ_Sweep_10: 3σ extreme<br>→ deliberate VIOLATED assertion
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Principle banner -->
+    <div class="s2-principle">
+      <span class="icon">🔒</span>
+      The SysML v2 API receives only models that have <em>compiled without errors</em> and <em>satisfied all positive-test requirement assertions.</em>
+      The API project UUID becomes the <em>authoritative version anchor</em> for all downstream tools and reports.
+    </div>
+
+  </div>
+
+  <div class="ft">
+    <b>Key invariant:</b> the API is never contacted during PR validation.
+    <span class="ft-sep">|</span>
+    Only clean, assertion-passing models reach the server after merge to main.
+    <span class="ft-sep">|</span>
+    <code>lib/commit-ids.json</code> records all layer UUIDs as an audit trail.
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     SLIDE 3 — Structured Assurance: From Standard to SATISFIED
+════════════════════════════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="hd">
+    <span class="hd-num">03 / 03</span>
+    <div class="hd-rule"></div>
+    <span class="hd-title"><b>Structured Assurance:</b> From Regulatory Standard to Verified Evidence</span>
+  </div>
+
+  <div class="bd" style="display:flex; overflow:hidden; flex:1;">
+
+    <!-- Assurance chain -->
+    <div class="s3-left">
+
+      <div class="ch">
+        <div class="ch-num">1</div>
+        <div class="ch-box">
+          <div class="tag">Source — Regulatory Standard / Safety Analysis</div>
+          <div class="ch-name">SOLAS II-1 · MARPOL Annex I · DNV Pt.4 Ch.6 · IEC 60945 · STPA-BPS-002 · FMEA-BPS-001</div>
+        </div>
+      </div>
+      <div class="ch-conn">↓ mapped to</div>
+
+      <div class="ch">
+        <div class="ch-num">2</div>
+        <div class="ch-box">
+          <div class="tag">SysML v2 — requirement def  (Requirements.sysml / Safety.sysml)</div>
+          <div class="ch-name">DischargeCapacityRequirement · UCA_001_ControllerNoActivatePumpA · …</div>
+          <span class="ch-code">require constraint &#123; sys.pumpA.flowRate + sys.pumpB.flowRate &gt;= designInflow &#125;</span>
+        </div>
+      </div>
+      <div class="ch-conn">↓ evaluated by</div>
+
+      <div class="ch">
+        <div class="ch-num">3</div>
+        <div class="ch-box">
+          <div class="tag">SysML v2 — analysis def  (Analysis.sysml / FMEA.sysml / UQ.sysml)</div>
+          <div class="ch-name">BilgePumpVerification · FMEA_SensorStuckAtZero · UQ_Sweep_05 · …</div>
+          <span class="ch-code">bind sys.pumpA.flowRate = 0.025;  <span style="color:#5a8a5a">// SOURCE: OpenFOAM CFD export</span></span><br>
+          <span class="ch-code" style="margin-top:4px;">bind sys.pumpA.efficiency = 0.82;  <span style="color:#5a8a5a">// SOURCE: Simulink model</span></span>
+        </div>
+      </div>
+      <div class="ch-conn">↓ asserts</div>
+
+      <div class="ch">
+        <div class="ch-num sat">✓</div>
+        <div class="ch-box sat">
+          <div class="tag">Assertion Result — kernel + Python evaluation</div>
+          <div class="ch-name">BPS-REQ-004  DischargeCapacityRequirement:  SATISFIED &nbsp; Q_net = 0.0394 m³/s ≥ 0.030</div>
+        </div>
+      </div>
+      <div class="ch-conn">↓ becomes</div>
+
+      <div class="ch">
+        <div class="ch-num">5</div>
+        <div class="ch-box">
+          <div class="tag">Compliance Evidence — version-controlled, traceable, reproducible</div>
+          <div class="ch-name">lib/verification-results.json · git commit SHA · API project UUID · Safety.ipynb output</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right panel: evidence streams -->
+    <div class="s3-right">
+      <div class="tag">Parallel Evidence Streams</div>
+
+      <div class="ev stpa">
+        <div class="tag">STPA — Hazard Analysis</div>
+        <p>5 Unsafe Control Action (UCA) requirement defs derived from STPA-BPS-002.
+           Each asserts a controller timing or sensor validity constraint.
+           Nominal positive test: all 5 SATISFIED.</p>
+      </div>
+
+      <div class="ev fmea">
+        <div class="tag">FMEA — Failure Mode Analysis</div>
+        <p>4 negative-test analysis defs inject fault values (sensor stuck-at-zero,
+           pump cavitation, controller hang). RPN table: 5 of 8 modes exceed
+           action threshold 100. System MTBF ≈ 507,000 years (parallel redundancy).</p>
+      </div>
+
+      <div class="ev uq">
+        <div class="tag">UQ — Uncertainty Quantification</div>
+        <p>N=10 deterministic parametric sweep (±1σ, ±3σ, combined extremes) on
+           flow rate, efficiency, and pipe loss.
+           Result: 9/10 SATISFIED · 1/10 VIOLATED (combined 3σ extreme — engineering action flagged).</p>
+      </div>
+
+      <div class="trace-note">
+        <strong>Traceability chain:</strong> every model element carries a
+        <code>sourceDoc</code> reference to the originating standard or tool export.
+        <code>lib/traceability.json</code> maps all elements to source documents.
+        The TraceabilityAgent gates the VerificationAgent — no phantom elements allowed.
+      </div>
+    </div>
+
+  </div>
+
+  <div class="ft">
+    <b>Every SATISFIED assertion is a traceable claim.</b>
+    <span class="ft-sep">|</span>
+    Every bind value has a source tool reference.
+    <span class="ft-sep">|</span>
+    Every requirement carries a regulatory standard citation.
+    <span class="ft-sep">|</span>
+    The model IS the evidence record.
+  </div>
+</section>
+
+</body>
+</html>

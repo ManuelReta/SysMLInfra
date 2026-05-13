@@ -1,0 +1,76 @@
+{
+  "_meta": {
+    "source_tool": "IBM DOORS Next Generation v7.0 — Requirements Export",
+    "export_format": "DOORS NG JSON Export v2.0",
+    "system": "Bilge Pump System",
+    "document_id": "REG-001",
+    "revision": "3.0",
+    "date": "2026-05-13",
+    "description": "Regulatory requirements extracted from SOLAS Chapter II-1 Reg.35, MARPOL 73/78 Annex I Reg.22, and IEC 60945:2002 §4.3 for use by RequirementMapper."
+  },
+  "requirements": [
+    {
+      "id": "BPS-REQ-001",
+      "name": "WaterLevelRequirement",
+      "text": "The bilge water level shall not exceed 300 mm (0.3 m) above the bilge floor during normal automated operation.",
+      "subject": "BilgePumpSystem",
+      "constraint_expression": "sys.sensor.waterLevel <= 0.3",
+      "constraint_unit": "m",
+      "rationale": "Prevents engine room flooding that compromises watertight integrity per IMO MARPOL 73/78 Annex I Regulation 22",
+      "regulatory_source": "IMO MARPOL 73/78 Annex I",
+      "regulation_id": "Reg.22",
+      "source_doc": "REG-001",
+      "section": "2.1",
+      "page": 4,
+      "doors_id": "REQ-BPS-001",
+      "verification_method": "analysis"
+    },
+    {
+      "id": "BPS-REQ-002",
+      "name": "PumpRedundancyRequirement",
+      "text": "The bilge pump system shall include a designated redundant pump (Pump B) with an independent power feed, capable of maintaining full discharge capacity in the event of Pump A failure.",
+      "subject": "BilgePumpSystem",
+      "constraint_expression": "sys.pumpB.isRedundant == true",
+      "rationale": "DNV Rules for Ships Pt.4 Ch.6 §3 and SOLAS II-1 Reg.35 require independent redundant pump with separate power feed",
+      "regulatory_source": "DNV Rules Pt.4 Ch.6; SOLAS II-1",
+      "regulation_id": "§3 / Reg.35",
+      "source_doc": "REG-001",
+      "section": "2.2",
+      "page": 5,
+      "doors_id": "REQ-BPS-002",
+      "verification_method": "analysis"
+    },
+    {
+      "id": "BPS-REQ-003",
+      "name": "AlarmResponseRequirement",
+      "text": "The alarm system shall activate audible and visual annunciation within 2.0 seconds of the controller issuing an alarm trigger, in compliance with IEC 60945 Section 4.3.",
+      "subject": "BilgePumpSystem",
+      "constraint_expression": "sys.alarm.activationDelay_s <= 2.0",
+      "constraint_unit": "s",
+      "rationale": "IEC 60945:2002 §4.3 — all Class A alarms on commercial vessels must activate within 2.0 s",
+      "regulatory_source": "IEC 60945:2002",
+      "regulation_id": "§4.3",
+      "source_doc": "REG-001",
+      "section": "2.3",
+      "page": 6,
+      "doors_id": "REQ-BPS-003",
+      "verification_method": "test"
+    },
+    {
+      "id": "BPS-REQ-004",
+      "name": "DischargeCapacityRequirement",
+      "text": "The combined discharge capacity of the bilge pumping system shall exceed the maximum design inflow rate from the worst-case damage stability scenario.",
+      "subject": "BilgePumpSystem",
+      "constraint_expression": "(sys.pumpA.flowRate + sys.pumpB.flowRate) >= designInflow",
+      "constraint_unit": "m³/s",
+      "rationale": "SOLAS Chapter II-1 Regulation 35 — pump capacity must exceed worst-case flooding inflow to maintain freeboard",
+      "regulatory_source": "SOLAS II-1",
+      "regulation_id": "Reg.35",
+      "source_doc": "REG-001",
+      "section": "2.4",
+      "page": 7,
+      "doors_id": "REQ-BPS-004",
+      "verification_method": "analysis"
+    }
+  ]
+}

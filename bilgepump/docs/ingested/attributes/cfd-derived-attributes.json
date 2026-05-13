@@ -1,0 +1,90 @@
+{
+  "_meta": {
+    "source_tool": "OpenFOAM v10 (CFD) + vendor pump test certificates",
+    "export_format": "Attribute Value Export JSON",
+    "system": "Bilge Pump System",
+    "document_id": "CFD-PUMP-001",
+    "revision": "2.0",
+    "date": "2026-05-13",
+    "description": "Derived attribute values for BilgePumpA and BilgePumpB from CFD simulation and vendor certification. Provides numeric values for SysML attribute def bindings in Library and Analysis layers."
+  },
+  "attributes": [
+    {
+      "component": "BilgePumpA",
+      "attribute": "flowRate",
+      "value": 0.025,
+      "unit": "m³/s",
+      "uncertainty_1sigma": 0.002,
+      "source": "OpenFOAM BEP simulation; validated against vendor impeller test (ISO 9906)",
+      "source_doc": "CFD-PUMP-001",
+      "section": "4.2"
+    },
+    {
+      "component": "BilgePumpA",
+      "attribute": "efficiency",
+      "value": 0.82,
+      "unit": "dimensionless",
+      "uncertainty_1sigma": 0.03,
+      "source": "CFD k-ε model at BEP; 3σ envelope from 12-point repeatability study",
+      "source_doc": "CFD-PUMP-001",
+      "section": "4.3"
+    },
+    {
+      "component": "BilgePumpA",
+      "attribute": "runHours",
+      "value": 120.0,
+      "unit": "h",
+      "source": "CMMS record at time of analysis",
+      "source_doc": "CMMS-BPS-001",
+      "section": "2.1"
+    },
+    {
+      "component": "BilgePumpB",
+      "attribute": "flowRate",
+      "value": 0.025,
+      "unit": "m³/s",
+      "uncertainty_1sigma": 0.002,
+      "source": "Identical pump — same test certificate as Pump A",
+      "source_doc": "CFD-PUMP-001",
+      "section": "4.2"
+    },
+    {
+      "component": "BilgePumpB",
+      "attribute": "efficiency",
+      "value": 0.82,
+      "unit": "dimensionless",
+      "uncertainty_1sigma": 0.03,
+      "source": "Identical pump",
+      "source_doc": "CFD-PUMP-001",
+      "section": "4.3"
+    },
+    {
+      "component": "BilgePumpB",
+      "attribute": "runHours",
+      "value": 85.0,
+      "unit": "h",
+      "source": "CMMS record — installed 35 operating hours later than Pump A",
+      "source_doc": "CMMS-BPS-001",
+      "section": "2.2"
+    },
+    {
+      "component": "BilgePumpA",
+      "attribute": "npsh_required_m",
+      "value": 2.5,
+      "unit": "m",
+      "source": "CFD Q-H curve at rated point (2950 RPM)",
+      "source_doc": "CFD-PUMP-001",
+      "section": "4.4"
+    },
+    {
+      "component": "BilgePumpA",
+      "attribute": "cavitation_onset_efficiency",
+      "value": 0.50,
+      "unit": "dimensionless",
+      "source": "Below this efficiency level, cavitation-induced vibration exceeds ISO 10816 threshold",
+      "source_doc": "CFD-PUMP-001",
+      "section": "4.5",
+      "fmea_ref": "FM-PA-002"
+    }
+  ]
+}

@@ -1,0 +1,95 @@
+{
+  "_meta": {
+    "source_tool": "XSTAMPP 2.0 (STPA Workbench)",
+    "export_format": "XSTAMPP JSON v2.1",
+    "system": "Bilge Pump System",
+    "analyst": "Systems Safety Engineer",
+    "date": "2026-05-13",
+    "revision": "1.0",
+    "document_id": "STPA-BPS-001"
+  },
+  "losses": [
+    {
+      "id": "L-0",
+      "description": "Loss of human life or injury to vessel crew",
+      "category": "safety",
+      "severity": "catastrophic",
+      "regulatory_ref": "SOLAS Chapter III — Life-Saving Appliances"
+    },
+    {
+      "id": "L-1",
+      "description": "Loss of vessel — sinking or capsize due to uncontrolled flooding",
+      "category": "safety",
+      "severity": "catastrophic",
+      "regulatory_ref": "SOLAS Chapter II-1 — Subdivision and Stability"
+    },
+    {
+      "id": "L-2",
+      "description": "Marine environmental damage — bilge water overboard without treatment",
+      "category": "environmental",
+      "severity": "critical",
+      "regulatory_ref": "MARPOL 73/78 Annex I, Regulation 22"
+    }
+  ],
+  "hazards": [
+    {
+      "id": "H-1",
+      "description": "Bilge water accumulates to flooding level",
+      "loss_refs": ["L-0", "L-1"],
+      "system_state": "Water level exceeds engine room bilge floor threshold (> 0.3 m)",
+      "worst_case_condition": "Damage flooding scenario during heavy seas",
+      "severity": "catastrophic",
+      "regulatory_ref": "SOLAS II-1 Reg.35; MARPOL Annex I Reg.22"
+    },
+    {
+      "id": "H-2",
+      "description": "Bilge pump operates without discharge containment",
+      "loss_refs": ["L-2"],
+      "system_state": "Pump activated but ODME bypass open or OWS offline",
+      "worst_case_condition": "Night operation, automatic mode, no bridge watch awareness",
+      "severity": "critical",
+      "regulatory_ref": "MARPOL 73/78 Annex I, Regulation 22 §3"
+    },
+    {
+      "id": "H-3",
+      "description": "Alarm not received by bridge crew during critical flooding event",
+      "loss_refs": ["L-0", "L-1"],
+      "system_state": "AlarmSystem not annunciating within 2 s of trigger",
+      "worst_case_condition": "Controller detects flood but alarm unit fails or power lost",
+      "severity": "critical",
+      "regulatory_ref": "IEC 60945:2002 §4.3; IMO MSC/Circ.982"
+    },
+    {
+      "id": "H-4",
+      "description": "Single pump failure with no redundant backup available",
+      "loss_refs": ["L-1"],
+      "system_state": "Pump A faulted and Pump B unavailable (not independent power feed)",
+      "worst_case_condition": "Primary bus fault during flooding event",
+      "severity": "critical",
+      "regulatory_ref": "DNV Rules Pt.4 Ch.6 §3; SOLAS II-1 Reg.35"
+    }
+  ],
+  "hazardous_situations": [
+    {
+      "id": "HS-1",
+      "hazard_ref": "H-1",
+      "description": "High bilge water detected but controller fails to command pump start",
+      "context": "Automatic mode, water level 0.28 m and rising",
+      "potential_causes": ["UCA-001", "UCA-002"]
+    },
+    {
+      "id": "HS-2",
+      "hazard_ref": "H-3",
+      "description": "Water level exceeds trigger threshold but alarm output remains suppressed",
+      "context": "Controller alarmOut port inactive despite water level > triggerLevel_m",
+      "potential_causes": ["UCA-003"]
+    },
+    {
+      "id": "HS-3",
+      "hazard_ref": "H-4",
+      "description": "Pump A running but not pumping (cavitation), Pump B not commanded",
+      "context": "Controller receives valid status signals from faulted Pump A",
+      "potential_causes": ["UCA-004", "UCA-005"]
+    }
+  ]
+}
