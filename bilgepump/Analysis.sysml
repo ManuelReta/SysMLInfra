@@ -37,7 +37,46 @@ package 'BilgePump::Analysis' {
     import 'BilgePump::Library'::*;
     import 'BilgePump::Architecture'::*;
     import 'BilgePump::Requirements'::*;
-
+//
+    // =========================================================================
+    // StateTransitionTimingPhysics  — state machine transition timing budget
+    //
+    // Models the timing chain from sensor threshold crossing to pump activation
+    // command, as measured by the Simulink discrete-event model SIM-CTRL-001:
+    //   totalTime_s = samplingLatency_s + processingTime_s + commandLatency_s
+    //
+    // The constraint asserts totalTime_s ≤ maxResponseTime_s.
+    //
+    // EXTERNAL TOOL BINDING:
+    //   ← Simulink/Stateflow discrete-event model (SIM-CTRL-001 §3.1):
+    //     samplingLatency_s = 0.1 s  (100 ms sample interval)
+    //     processingTime_s  = 0.9 s  (firmware processing, nominal)
+    //     commandLatency_s  = 0.0 s  (direct GPIO — negligible)
+    //     → totalTime_s = 1.0 s (nominal) ≤ 5.0 s maxResponseTime_s ✓
+    //   Watchdog recovery: processingTime_s = 3.9 s → total = 4.9 s ≤ 5.0 s (marginal)
+    //   Hang case (FM-C-001): totalTime_s = 9999.0 s >> maxResponseTime_s → VIOLATED
+    //
+    // Linked requirement: BPS-REQ-005 (ControllerActivationTimingRequirement)
+    // Linked state:       MONITORING → PUMP_A_ACTIVE transition (StateMachine.sysml)
+    // =========================================================================
+    constraint def StateTransitionTimingPhysics {
+        // Input: timing budget components
+        attribute samplingLatency_s : Real;   // Sensor poll interval (s)
+        attribute processingTime_s  : Real;   // Firmware processing time (s)
+        attribute commandLatency_s  : Real;   // Output command transmission latency (s)
+        // Input: timing bound from requirement
+        attribute maxResponseTime_s : Real;   // Maximum allowed response time (s) [BPS-REQ-005]
+//
+        // Computed: total response time
+        attribute totalTime_s       : Real;
+//
+        // Timing budget assertion
+        assert constraint {
+            totalTime_s == samplingLatency_s + processingTime_s + commandLatency_s
+            and totalTime_s <= maxResponseTime_s
+        }
+    }
+//
     // =========================================================================
     // PumpFlowPhysics  — physics constraint definition
     //
@@ -212,5 +251,86 @@ package 'BilgePump::Analysis' {
         //   4. Re-run via Verification.ipynb Cell 7
         // =====================================================================
     }
-
+//
+    // =========================================================================
+    // BilgePumpTimingVerification  — timing analysis case (TEST RUNNER)
+    //
+    // Verifies the two timing requirements introduced by the state machine
+    // analysis (BPS-REQ-005, BPS-REQ-006) and re-asserts the alarm timing
+    // requirement (BPS-REQ-003) in the same harness.
+    //
+    // Nominal test values (positive test — all should be SATISFIED):
+    //   controller.responseTime_s = 1.0 s   (SIM-CTRL-001 §3.1 nominal)
+    //   controller.failoverTime_s = 0.8 s   (SIM-CTRL-001 §3.2 normal failover)
+    //   alarm.activationDelay_s   = 0.5 s   (nominal; well within 2.0 s limit)
+    //   Timing budget: 0.1 s (sampling) + 0.9 s (processing) + 0.0 s (cmd) = 1.0 s
+    //   → totalTime_s = 1.0 s ≤ 5.0 s ✓
+    //
+    // Negative tests (run from Safety.ipynb):
+    //   FMEA_ControllerHang (FMEA.sysml): responseTime_s = 9999.0 → BPS-REQ-005 VIOLATED
+    //   FMEA_FailoverNotTriggered (FMEA.sysml): failoverTime_s = 9999.0 → BPS-REQ-006 VIOLATED
+    // =========================================================================
+    analysis def BilgePumpTimingVerification {
+//
+        subject sys : BilgePumpSystem {
+//
+            // --- PumpController timing attributes (UNDER TEST) ---
+            // Nominal response time from SIM-CTRL-001 §3.1
+            bind sys.controller.responseTime_s  = 1.0;
+            // Nominal failover time from SIM-CTRL-001 §3.2
+            bind sys.controller.failoverTime_s  = 0.8;
+            // Trigger level (required for subject completeness)
+            bind sys.controller.triggerLevel_m  = 0.25;
+//
+            // --- BilgeWaterSensor (nominal) ---
+            bind sys.sensor.waterLevel          = 0.15;
+//
+            // --- PowerSupply (nominal) ---
+            bind sys.power.nominalVoltage       = 440.0;
+            bind sys.power.redundancyActive     = false;
+//
+            // --- BilgePumpA and B (nominal — not timing-critical here) ---
+            bind sys.pumpA.flowRate             = 0.025;
+            bind sys.pumpA.efficiency           = 0.82;
+            bind sys.pumpA.runHours             = 120.0;
+            bind sys.pumpB.flowRate             = 0.025;
+            bind sys.pumpB.efficiency           = 0.82;
+            bind sys.pumpB.runHours             = 85.0;
+            bind sys.pumpB.isRedundant          = true;
+//
+            // --- DischargeLine (nominal) ---
+            bind sys.discharge.pipeLossFactor   = 0.05;
+//
+            // --- AlarmSystem timing (UNDER TEST) ---
+            // 0.5 s activation delay — well within IEC 60945 2.0 s limit
+            bind sys.alarm.activationDelay_s    = 0.5;
+            bind sys.alarm.isActive             = false;
+//
+            // --- OperatorInterface (nominal) ---
+            bind sys.ui.overrideActive          = false;
+        }
+//
+        // Timing budget constraint usage
+        // Decomposes responseTime_s into sampling + processing + command latency.
+        // SOURCE: SIM-CTRL-001 §3.1 (100 ms sample interval + 900 ms processing)
+        constraint timingBudget : StateTransitionTimingPhysics {
+            bind timingBudget.samplingLatency_s = 0.1;    // 100 ms sample interval
+            bind timingBudget.processingTime_s  = 0.9;    // Firmware processing (nominal)
+            bind timingBudget.commandLatency_s  = 0.0;    // Direct GPIO — negligible
+            bind timingBudget.maxResponseTime_s = 5.0;    // Limit from BPS-REQ-005
+        }
+//
+        // TEST 5: Controller activation within 5.0 s of threshold crossing [BPS-REQ-005]
+        // Linked: MONITORING → PUMP_A_ACTIVE transition (StateMachine.sysml)
+        assert requirement activationTimingCheck : ControllerActivationTimingRequirement { subject sys; }
+//
+        // TEST 6: Failover switch within 3.0 s of Pump A fault [BPS-REQ-006]
+        // Linked: PUMP_A_ACTIVE → FAILOVER transition (StateMachine.sysml)
+        assert requirement failoverTimingCheck : FailoverSwitchTimingRequirement { subject sys; }
+//
+        // TEST 3 (re-asserted in timing context): Alarm within 2.0 s [BPS-REQ-003]
+        // Linked: PUMP_A_ACTIVE → ALARM_TRIGGERED transition (StateMachine.sysml)
+        assert requirement alarmTimingCheck : AlarmResponseRequirement { subject sys; }
+    }
+//
 }

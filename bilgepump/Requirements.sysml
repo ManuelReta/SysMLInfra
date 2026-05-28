@@ -142,5 +142,76 @@ package 'BilgePump::Requirements' {
             (sys.pumpA.flowRate + sys.pumpB.flowRate) >= designInflow
         }
     }
-
+//
+    // =========================================================================
+    // Requirement 5: Controller Activation Timing
+    //
+    // Regulatory basis:
+    //   Derived from STPA UCA-001 and UCA-005 safety constraints (SR-001/SR-005
+    //   in Safety.sysml). Formalised here at the system-requirements layer
+    //   with a directly measurable bound.
+    //   Simulink discrete-event timing analysis (SIM-CTRL-001 §3.1) validates:
+    //     Nominal:           responseTime_s = 1.0 s → PASS
+    //     High CPU load:     responseTime_s = 2.8 s → PASS
+    //     Watchdog recovery: responseTime_s = 4.9 s → PASS (marginal)
+    //     Software hang:     responseTime_s = 9999.0 s → FAIL (FM-C-001)
+    //
+    // Verification method: BilgePumpTimingVerification analysis def.
+    //   Nominal: responseTime_s = 1.0 → SATISFIED.
+    //   Negative: responseTime_s = 9999.0 → VIOLATED (see FMEA_ControllerHang).
+    //
+    // State machine link: MONITORING → PUMP_A_ACTIVE transition guard.
+    //   See PumpControllerBehavior in StateMachine.sysml.
+    //
+    // DOORS / Jama traceability ID: BPS-REQ-005
+    // =========================================================================
+    requirement def ControllerActivationTimingRequirement {
+        subject sys : BilgePumpSystem;
+//
+        doc /* The PumpController shall issue a pump activation command within
+               5.0 seconds of detecting a water level at or above triggerLevel_m.
+               Derived from STPA SR-001/SR-005; validated by Simulink timing
+               analysis SIM-CTRL-001 §3.1. */
+//
+        require constraint {
+            sys.controller.responseTime_s <= 5.0
+        }
+    }
+//
+    // =========================================================================
+    // Requirement 6: Failover Switch Timing
+    //
+    // Regulatory basis:
+    //   Derived from STPA UCA-004 safety constraint (SR-004 in Safety.sysml).
+    //   This requirement closes a gap in the original 4-requirement set:
+    //   BPS-REQ-002 (PumpRedundancyRequirement) verifies structural redundancy
+    //   (pumpB.isRedundant == true) but does NOT verify the TIMING of failover.
+    //   SIM-CTRL-001 §3.2 provides the timing bound:
+    //     Normal failover:   failoverTime_s = 0.8 s → PASS
+    //     Delayed detection: failoverTime_s = 2.7 s → PASS
+    //     No failover:       failoverTime_s = 9999.0 s → FAIL (FM-C-003)
+    //
+    // Verification method: BilgePumpTimingVerification analysis def.
+    //   Nominal: failoverTime_s = 0.8 s → SATISFIED.
+    //   Negative: failoverTime_s = 9999.0 s → VIOLATED (FMEA_FailoverNotTriggered).
+    //
+    // State machine link: PUMP_A_ACTIVE → FAILOVER transition guard.
+    //   See PumpControllerBehavior in StateMachine.sysml.
+    //
+    // DOORS / Jama traceability ID: BPS-REQ-006
+    // =========================================================================
+    requirement def FailoverSwitchTimingRequirement {
+        subject sys : BilgePumpSystem;
+//
+        doc /* The PumpController shall issue a Pump B activation command within
+               3.0 seconds of detecting a Pump A fault condition.
+               Derived from STPA SR-004 and Simulink failover timing analysis
+               SIM-CTRL-001 §3.2. Closes the gap in BPS-REQ-002 which verifies
+               structural redundancy but not failover timing. */
+//
+        require constraint {
+            sys.controller.failoverTime_s <= 3.0
+        }
+    }
+//
 }

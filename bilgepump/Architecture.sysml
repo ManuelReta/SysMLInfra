@@ -117,6 +117,16 @@ package 'BilgePump::Architecture' {
         //      AlarmSystem annunciates locally; also mirrors to bridge BNWAS.
         connect alarm.notifyOut         to ui.notifyIn;
 
+        // ---------------------------------------------------------------------
+        // State machine behavioral bindings
+        // Links part instances to state machine definitions in StateMachine.sysml.
+        // PumpControllerBehavior models 7 discrete controller operating states.
+        // BilgePumpSystemBehavior models 5 system-level operational modes.
+        // SOURCE: BilgePump::StateMachine (StateMachine.sysml)
+        // ---------------------------------------------------------------------
+        exhibit state controllerBehavior : PumpControllerBehavior;
+        exhibit state systemBehavior     : BilgePumpSystemBehavior;
+
     }
 
 }

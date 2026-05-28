@@ -39,6 +39,10 @@ Identify which document types are present from this list:
 - Hand calculation / physics report / FEA output → activates ConstraintMapper
 - FFBD / CONOPS / functional flow diagram → activates AllocationMapper
 - Test procedure / V&V plan / acceptance criteria → activates AnalysisMapper
+- Simulink/Stateflow model export / IEC 61131-3 SFC / operational mode table → activates StateMachineMapper
+  (detection rule: `docs/ingested/constraints/` contains a file whose `_meta.source_tool` mentions
+  "Simulink", "Stateflow", "CODESYS", "TIA Portal", "SFC", or "discrete-event"; OR
+  `docs/ingested/states/operational-modes.json` exists)
 
 Write the activation list to `lib/build-state.json` under `"activeAgents"`.
 Flag missing inputs clearly — e.g., if no functional decomposition exists, note that AllocationMapper will be skipped.
@@ -110,9 +114,10 @@ All agents read and write `lib/build-state.json`. Structure:
     "phase2": "pending",
     "phase3": "pending",
     "phase3_5": {
-      "safety": "pending",
-      "fmea":   "pending",
-      "raaml":  "pending"
+      "safety":       "pending",
+      "fmea":         "pending",
+      "raaml":        "pending",
+      "stateMachine": "pending"
     },
     "phase4": "pending | skipped",
     "phase5": "pending",
@@ -146,10 +151,12 @@ Phase 3.5 is inserted **between Phase 3 (Requirements + Constraints) and Phase 4
 | `docs/ingested/hazards/` | RequirementMapper (STPA mode) + AnalysisMapper (STPA scenarios mode) |
 | `docs/ingested/fmea/` | ConstraintMapper (FMEA mode) + AnalysisMapper (FMEA negative test mode) |
 | `docs/ingested/uq/` | Phase 7 flow: AnalysisMapper (UQ mode) |
+| `docs/ingested/constraints/` with Simulink/SFC/discrete-event export | StateMachineMapper |
+| `docs/ingested/states/operational-modes.json` present | StateMachineMapper |
 
 When any of the above directories are non-empty, set in `lib/build-state.json`:
 ```json
-"activeAgents": ["RAAMLMapper", "RequirementMapper-STPA", "ConstraintMapper-FMEA", "AnalysisMapper-FMEA", "AnalysisMapper-STPA"]
+"activeAgents": ["RAAMLMapper", "RequirementMapper-STPA", "ConstraintMapper-FMEA", "AnalysisMapper-FMEA", "AnalysisMapper-STPA", "StateMachineMapper"]
 ```
 
 #### Dependency Graph additions (Action 2)
@@ -159,8 +166,14 @@ Extended pipeline with Phase 3.5 and Phase 7:
 ```
 Phase 1 (PortDefMapper + AttributeDefMapper) [parallel]
   └─► Phase 2 (PartDefMapper)
+        │
+        ├─► [Phase 2→3 Preflight Gate] ── run StateMachineMapper pre-analysis preflight
+        │       check: failoverTime_s in Library.sysml → if absent, re-queue PartDefMapper
+        │
         └─► Phase 3 (RequirementMapper + ConstraintMapper) [parallel]
-              └─► Phase 3.5 (Safety Analysis) ─────────────────────────┐
+              └─► Phase 3.5 [all parallel] ─────────────────────────────┐
+                    ├─ StateMachineMapper  (writes StateMachine.sysml    │
+                    │                      + lib/state-space.json)       │
                     ├─ RequirementMapper-STPA (writes Safety.sysml)      │
                     ├─ ConstraintMapper-FMEA  (writes FMEA.sysml)        │
                     └─ RAAMLMapper            (writes RAAML.sysml)       │
@@ -177,14 +190,31 @@ and runs only after Phase 6 passes.
 
 #### Phase Gate Conditions
 
-**Phase 3.5 gate** (all three must be true to advance to Phase 4):
-1. `Safety.sysml` exists in the bilgepump project directory AND contains ≥ 1 `requirement def` whose
-   name starts with `UCA_`
+**Phase 3.5 gate** (all four must be true to advance to Phase 4):
+1. `Safety.sysml` exists AND contains ≥ 1 `requirement def` whose name starts with `UCA_`
 2. `FMEA.sysml` exists AND contains ≥ 1 `constraint def` AND ≥ 1 `analysis def`
 3. `RAAML.sysml` exists AND contains ≥ 1 `metadata def` (or `attribute def` in fallback mode)
+4. `StateMachine.sysml` exists AND contains ≥ 1 `state def` AND ≥ 1 `transition`
+   (condition 4 only required if StateMachineMapper was in the activation list)
 
 **Phase 7 gate** (non-blocking — Phase 6 does not wait for Phase 7):
 - `UQ.sysml` exists AND contains ≥ 10 `analysis def` blocks (one per sweep point)
+
+#### Phase 2→3 Preflight Gate (StateMachine pre-analysis)
+
+Before advancing from Phase 2 to Phase 3, when StateMachineMapper is in the activation list:
+
+1. Run StateMachineMapper in preflight-only mode (set flag `--preflight` — writes only to
+   `lib/build-state.json`, no SysML output)
+2. Read `lib/build-state.json["stateMachinePreflightReport"]`
+3. Check `"blockers"` array:
+   - If `blockers` contains a `failoverTime_s` missing entry:
+     - Re-queue PartDefMapper with context: `"add failoverTime_s : Real to PumpController
+       in Library.sysml; SOURCE: SIM-CTRL-001 §3.2; required by FAILOVER transition guard"`
+     - Block Phase 3 until PartDefMapper completes the attribute addition
+     - Then re-run Phase 2 exit gate before allowing Phase 3 to start
+   - If `blockers` is empty: proceed to Phase 3 normally
+4. Write `lib/build-state.json["stateMachinePreflightReport"]["preflightPassed"]` = true/false
 
 #### Failure Routing for Phase 3.5
 

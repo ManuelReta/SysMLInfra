@@ -167,6 +167,11 @@ package 'BilgePump::Library' {
         attribute responseTime_s    : Real;
         // Water level threshold at which pumping is triggered (metres)
         attribute triggerLevel_m    : Real;
+        // Time from Pump A fault detection to Pump B activation command (seconds)
+        // SOURCE: Simulink/Stateflow timing model SIM-CTRL-001 §3.2
+        // Normal failover: 0.8 s; delayed detection: 2.7 s; no failover: 9999.0 s
+        // Required by BPS-REQ-006 (FailoverSwitchTimingRequirement)
+        attribute failoverTime_s    : Real;
     }
 
     // -------------------------------------------------------------------------

@@ -120,6 +120,7 @@ package 'BilgePump::Safety' {
         hazardRefs    = "H-1,HS-1";
         severity      = "catastrophic";
         failureModeLink = "FM-C-001";
+        transitionRef   = "MONITORING_to_PUMP_A_ACTIVE";
         sourceDoc     = "STPA-BPS-002";
         section       = "3.1";
     }
@@ -196,6 +197,7 @@ package 'BilgePump::Safety' {
         hazardRefs    = "H-3,HS-2";
         severity      = "critical";
         failureModeLink = "FM-C-002";
+        transitionRef   = "PUMP_A_ACTIVE_to_ALARM_TRIGGERED";
         sourceDoc     = "STPA-BPS-002";
         section       = "3.3";
     }
@@ -233,6 +235,7 @@ package 'BilgePump::Safety' {
         hazardRefs    = "H-4,HS-3";
         severity      = "critical";
         failureModeLink = "FM-C-003";
+        transitionRef   = "PUMP_A_ACTIVE_to_FAILOVER";
         sourceDoc     = "STPA-BPS-002";
         section       = "3.4";
     }
@@ -270,6 +273,7 @@ package 'BilgePump::Safety' {
         hazardRefs    = "H-1";
         severity      = "critical";
         failureModeLink = "FM-C-001";
+        transitionRef   = "MONITORING_to_PUMP_A_ACTIVE";
         sourceDoc     = "STPA-BPS-002";
         section       = "3.5";
     }

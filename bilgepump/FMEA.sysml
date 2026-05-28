@@ -119,6 +119,27 @@ package 'BilgePump::FMEA' {
         }
     }
 
+    // -------------------------------------------------------------------------
+    // FailoverSwitchTimeConstraint
+    // Timing constraint for controller failover from Pump A to Pump B.
+    // SOURCE: SIM-CTRL-001 \u00a73.2 (Simulink discrete-event failover timing model)
+    // FAILURE MODE LINK: FM-C-003 (controller failover not triggered)
+    // NOTE: Complements ParallelRedundancyFailureRate (structural redundancy);
+    //       this constraint verifies temporal adequacy of the redundancy switch.
+    //       SIM-CTRL-001 \u00a73.2 scenarios:
+    //         Normal failover:   failoverTime_s = 0.8 s \u2192 PASS
+    //         Delayed detection: failoverTime_s = 2.7 s \u2192 PASS
+    //         No failover:       failoverTime_s = 9999.0 s \u2192 FAIL
+    // -------------------------------------------------------------------------
+    constraint def FailoverSwitchTimeConstraint {
+        attribute failoverTime_s    : Real;   // Actual time from fault detection to Pump B command (s)
+        attribute maxFailoverTime_s : Real;   // Maximum allowed failover time (s)
+
+        assert constraint {
+            failoverTime_s <= maxFailoverTime_s
+        }
+    }
+
     // =========================================================================
     // FMEA NEGATIVE TEST ANALYSIS CASES
     // Each analysis def injects a specific failure mode value and confirms that
@@ -321,6 +342,7 @@ package 'BilgePump::FMEA' {
         rpn             = 140;
         ucaRef          = "UCA-001";
         hazardRef       = "H-1";
+        stateRef        = "FAULT";
         sourceDoc       = "FMEA-BPS-001";
         section         = "6.1";
     }
@@ -354,5 +376,66 @@ package 'BilgePump::FMEA' {
         // Expected: VIOLATED — alarm delay = 9999 s >> 2.0 s limit
         assert requirement alarmCheck : AlarmResponseRequirement { subject sys; }
     }
+    // -------------------------------------------------------------------------
+    // FMEA Negative Test 5: Failover Not Triggered
+    // Failure Mode: FM-C-003 (PumpController failover path disabled)
+    // RPN: 90 (S=9, O=2, D=5) \u2014 below threshold but Severity=9 flags mandatory review
+    // SOURCE: FMEA-BPS-001 \u00a76.3; SIM-CTRL-001 \u00a73.2 (no-failover scenario)
+    // EXPECTED: FailoverSwitchTimingRequirement VIOLATED
+    //           DischargeCapacityRequirement VIOLATED
+    // \u0394 GAP CLOSED: BPS-REQ-002 verified structural redundancy (isRedundant==true) but
+    //   did not verify failover TIMING. This test closes that gap via BPS-REQ-006.
+    // -------------------------------------------------------------------------
+    #FailureMode {
+        fmId            = "FM-C-003";
+        component       = "PumpController";
+        instance        = "controller";
+        failureModeText = "Failover path not triggered \u2014 Pump B command never issued after Pump A fault";
+        failureEffect   = "Pump A fault uncompensated; combined discharge flow drops to zero";
+        severity        = 9;
+        occurrence      = 2;
+        detection       = 5;
+        rpn             = 90;
+        ucaRef          = "UCA-004";
+        hazardRef       = "H-4";
+        stateRef        = "FAILOVER";
+        sourceDoc       = "FMEA-BPS-001";
+        section         = "6.3";
+    }
+    analysis def FMEA_FailoverNotTriggered {
+        subject sys : BilgePumpSystem {
+            bind sys.sensor.waterLevel          = 0.28;    // Valid \u2014 flood in progress
+            bind sys.controller.triggerLevel_m  = 0.25;    // Nominal trigger
+            bind sys.controller.responseTime_s  = 1.0;     // Controller responds to level
+            bind sys.controller.failoverTime_s  = 9999.0;  // FAULT: failover command never issued
+            bind sys.pumpA.flowRate             = 0.0;     // FAULT: Pump A failed (zero flow)
+            bind sys.pumpA.efficiency           = 0.82;    // Irrelevant \u2014 pump not running
+            bind sys.pumpA.runHours             = 120.0;
+            bind sys.pumpB.flowRate             = 0.0;     // Not activated \u2014 failover not triggered
+            bind sys.pumpB.efficiency           = 0.82;
+            bind sys.pumpB.runHours             = 85.0;
+            bind sys.pumpB.isRedundant          = true;    // Structurally redundant but not activated
+            bind sys.discharge.pipeLossFactor   = 0.05;
+            bind sys.alarm.activationDelay_s    = 0.5;     // Alarm fires normally
+            bind sys.alarm.isActive             = true;
+            bind sys.ui.overrideActive          = false;
+        }
 
+        // Failover timing constraint \u2014 expected VIOLATED (9999.0 s > 3.0 s)
+        // SOURCE: SIM-CTRL-001 \u00a73.2 no-failover scenario; FM-C-003
+        constraint failoverTimingCheck : FailoverSwitchTimeConstraint {
+            bind failoverTimingCheck.failoverTime_s    = 9999.0;
+            bind failoverTimingCheck.maxFailoverTime_s = 3.0;
+        }
+
+        // Expected: VIOLATED \u2014 failoverTime_s = 9999.0 > 3.0 s [BPS-REQ-006]
+        // Linked: PUMP_A_ACTIVE \u2192 FAILOVER transition guard (StateMachine.sysml)
+        assert requirement failoverTimingReq : FailoverSwitchTimingRequirement { subject sys; }
+
+        // Expected: VIOLATED \u2014 combined flow = 0 < 0.030 m\u00b3/s design inflow
+        assert requirement dischargeCheck : DischargeCapacityRequirement {
+            subject sys;
+            bind dischargeCheck.designInflow = 0.030;
+        }
+    }
 }

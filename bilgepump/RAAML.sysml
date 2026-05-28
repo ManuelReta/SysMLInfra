@@ -74,6 +74,8 @@ package 'BilgePump::RAAML' {
         attribute hazardRefs    : String;   // Comma-separated Hazard IDs
         attribute severity      : String;
         attribute failureModeLink: String;  // Link to FMEA failure mode ID (optional)
+        attribute transitionRef : String;   // State machine transition name that eliminates this UCA (optional)
+                                            // e.g. "MONITORING_to_PUMP_A_ACTIVE" — cross-ref to StateMachine.sysml
         attribute sourceDoc     : String;
         attribute section       : String;
     }
@@ -100,6 +102,8 @@ package 'BilgePump::RAAML' {
         attribute rpn               : Integer;  // Computed RPN = S×O×D
         attribute ucaRef            : String;   // Linked UCA if applicable
         attribute hazardRef         : String;
+        attribute stateRef          : String;   // State machine state associated with this failure mode (optional)
+                                                // e.g. "FAULT" or "FAILOVER" — cross-ref to StateMachine.sysml
         attribute sourceDoc         : String;
         attribute section           : String;
     }
