@@ -10,9 +10,9 @@ import pathlib
 # Repo root is two levels above this file (tests/conftest.py → repo root)
 REPO_ROOT = pathlib.Path(__file__).parent.parent
 SCRIPTS_DIR = REPO_ROOT / "scripts"
-BILGEPUMP_DIR = REPO_ROOT / "bilgepump"
+EXAMPLES_BILGEPUMP_DIR = REPO_ROOT / "examples" / "bilgepump"
 
-for p in (str(REPO_ROOT), str(SCRIPTS_DIR), str(BILGEPUMP_DIR)):
+for p in (str(REPO_ROOT), str(SCRIPTS_DIR), str(EXAMPLES_BILGEPUMP_DIR)):
     if p not in sys.path:
         sys.path.insert(0, p)
 
@@ -31,4 +31,4 @@ def manifest_path(repo_root):
 
 @pytest.fixture(scope="session")
 def bilgepump_dir(repo_root):
-    return repo_root / "bilgepump"
+    return repo_root / "examples" / "bilgepump"

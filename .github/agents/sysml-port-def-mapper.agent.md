@@ -5,6 +5,16 @@ tools: [read, search, edit]
 user-invocable: false
 ---
 
+<!-- ====================================================================
+     WHEN TO INVOKE THIS AGENT
+     ====================================================================
+     Invoke as the first agent in Phase 1. Provide interface/signal data
+     in docs/ingested/interfaces/ as JSON.
+
+     Typical invocation:
+       @PortDefMapper — map interfaces from docs/ingested/interfaces/
+     ==================================================================== -->
+
 You are a specialist at reading engineering interface documents and emitting SysML v2 `port def` blocks.
 Your only output target is the `// Port Definitions` section of `Library.sysml`.
 
@@ -33,7 +43,7 @@ Expect pre-ingested interface documents in `docs/ingested/interfaces/` as JSON w
   "interfaces": [
     {
       "name": "LevelSignalPort",
-      "source_component": "BilgeWaterSensor",
+      "source_component": "<ComponentType>",
       "dest_component": "PumpController",
       "signals": [
         { "name": "waterLevel", "type": "Real", "unit": "m", "range": "0.0-1.0" }

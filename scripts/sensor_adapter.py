@@ -16,7 +16,7 @@ Architecture:
 Output schema (compatible with verify.py bind values):
   {
       "timestamp":  "2024-01-15T10:30:00Z",    # ISO-8601 UTC
-      "system":     "BilgePumpSystem",
+      "system":     "<SystemType>",
       "source":     "mqtt",                     # adapter type
       "values": {
           "sys.sensor.waterLevel":        0.12,  # m  (reported water level)
@@ -51,7 +51,7 @@ Usage:
 Configuration file schema (sensors.json):
   {
       "adapter":   "rest" | "mqtt" | "opcua" | "mock",
-      "system":    "BilgePumpSystem",
+      "system":    "<SystemType>",
       "interval_s": 5,
       "rest": {
           "url":         "http://vessel-gateway:8080/api/bilge",
@@ -132,7 +132,7 @@ class SensorAdapter(abc.ABC):
     :data:`DEFAULTS` so the output is always a complete bind-value set.
     """
 
-    def __init__(self, config: dict, system: str = "BilgePumpSystem"):
+    def __init__(self, config: dict, system: str = "<SystemType>"):
         self.config = config
         self.system = system
 
@@ -170,7 +170,7 @@ class MockSensorAdapter(SensorAdapter):
       Step 5:    alarm active + override inactive (normal operation)
     """
 
-    def __init__(self, config: dict, system: str = "BilgePumpSystem"):
+    def __init__(self, config: dict, system: str = "<SystemType>"):
         super().__init__(config, system)
         self._step = 0
         self._scenarios = [
@@ -326,7 +326,7 @@ class OPCUASensorAdapter(SensorAdapter):
 def make_adapter(config: dict) -> SensorAdapter:
     """Create the appropriate adapter from a config dict."""
     adapter_type = config.get("adapter", "mock").lower()
-    system       = config.get("system", "BilgePumpSystem")
+    system       = config.get("system", "<SystemType>")
     mapping = {
         "mock":  MockSensorAdapter,
         "rest":  RESTSensorAdapter,
@@ -382,7 +382,7 @@ def main() -> None:
 
     # ── Build config ──────────────────────────────────────────────────────────
     if args.demo:
-        config = {"adapter": "mock", "system": "BilgePumpSystem"}
+        config = {"adapter": "mock", "system": "<SystemType>"}
     elif args.config:
         config_path = Path(args.config)
         if not config_path.exists():

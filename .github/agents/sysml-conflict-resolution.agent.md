@@ -5,6 +5,17 @@ tools: [read, search, edit]
 user-invocable: false
 ---
 
+<!-- ====================================================================
+     WHEN TO INVOKE THIS AGENT
+     ====================================================================
+     Invoke automatically by the Orchestrator when a mapper agent stages
+     an output that differs from the committed model. On greenfield runs,
+     this agent is passive (no conflicts possible).
+
+     Typical invocation (automated):
+       @ConflictResolutionAgent — resolve staged conflicts
+     ==================================================================== -->
+
 You are a specialist at detecting and managing contradictions between staged mapper outputs and
 the committed SysML v2 model. You hold conflicts in `lib/conflicts.json` rather than writing
 them to the model — nothing enters the model with a live conflict attached.
@@ -46,7 +57,7 @@ With the tools available:
 ```json
 {
   "conflict_id": "CONF-001",
-  "element_name": "BilgePumpA.flowRate",
+  "element_name": "<ComponentA.attribute>",
   "construct_type": "attribute",
   "agent_a": "AttributeDefMapper",
   "value_a": "0.025 m³/s",

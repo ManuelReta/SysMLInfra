@@ -163,15 +163,15 @@ class TestReadManifest:
         manifest.write_text(
             "name: TestProject\n"
             "layers:\n"
-            "  - bilgepump/Library.sysml\n"
-            "  - bilgepump/Architecture.sysml\n"
+            "  - examples/myproject/Library.sysml\n"
+            "  - examples/myproject/Architecture.sysml\n"
             "validation_layers:\n"
-            "  - bilgepump/Library.sysml\n"
+            "  - examples/myproject/Library.sysml\n"
         )
         name, layers, vl = verify._read_manifest(str(manifest))
         assert name == "TestProject"
-        assert layers == ["bilgepump/Library.sysml", "bilgepump/Architecture.sysml"]
-        assert vl == ["bilgepump/Library.sysml"]
+        assert layers == ["examples/myproject/Library.sysml", "examples/myproject/Architecture.sysml"]
+        assert vl == ["examples/myproject/Library.sysml"]
 
 
 # ── _save_results aggregation bug fix ────────────────────────────────────────

@@ -5,6 +5,16 @@ tools: [read, search, edit]
 user-invocable: false
 ---
 
+<!-- ====================================================================
+     WHEN TO INVOKE THIS AGENT
+     ====================================================================
+     Invoke during Phase 2 after all part defs and connections are done.
+     Provide functional allocation data in docs/ingested/functions/ as JSON.
+
+     Typical invocation:
+       @AllocationMapper — map functions from docs/ingested/functions/
+     ==================================================================== -->
+
 You are a specialist at reading functional decomposition documents and emitting SysML v2 `allocate`
 relationships that map functions to physical parts, and `satisfy` relationships that link
 requirements to the parts responsible for satisfying them.
@@ -54,9 +64,9 @@ Expect pre-extracted functional allocation data in `docs/ingested/allocations/` 
   "allocations": [
     {
       "function_id": "FN-001",
-      "function_name": "SenseBilgeWaterLevel",
-      "description": "Detect water accumulation level in the bilge compartment",
-      "allocated_to_part": "BilgeWaterSensor",
+      "function_name": "<SensePrimaryParameter>",
+      "description": "<Detect the primary physical quantity monitored by the system>",
+      "allocated_to_part": "<SensorPartType>",
       "allocated_to_instance": "sensor",
       "source_doc": "FFBD-001",
       "section": "3.1"
@@ -64,9 +74,9 @@ Expect pre-extracted functional allocation data in `docs/ingested/allocations/` 
   ],
   "satisfactions": [
     {
-      "requirement_id": "BPS-REQ-001",
+      "requirement_id": "<PRJ-REQ-001>",
       "requirement_name": "WaterLevelRequirement",
-      "satisfied_by_part": "BilgeWaterSensor",
+      "satisfied_by_part": "<SensorPartType>",
       "rationale": "Sensor directly measures the constrained attribute",
       "source_doc": "SYS-ALLOC-001",
       "section": "4.2"

@@ -5,15 +5,15 @@ Every notebook cell's top-level package **must be a single flat name**.
 
 ```sysml
 // CORRECT — flat, importable from other cells
-package BilgePump_Library { ... }
+package MyProject_Library { ... }
 
-// BROKEN — nested; other cells can't import BilgePump::Library
-package BilgePump { package Library { ... } }
+// BROKEN — nested; other cells can't import MyProject::Library
+package MyProject { package Library { ... } }
 ```
 
 ## Cross-cell import syntax
 ```sysml
-private import BilgePump_Library::*;   // imports all public members
+private import MyProject_Library::*;   // imports all public members
 private import ScalarValues::*;        // built-in scalar types (Real, Boolean, …)
 ```
 
@@ -24,9 +24,9 @@ Skipping any cell leaves names unresolved; re-run from the first skipped cell.
 ## What breaks
 | Symptom | Cause |
 |---|---|
-| `unresolved name 'BilgePumpSystem'` | Architecture cell not yet executed |
-| `unresolved name 'WaterLevelRequirement'` | Requirements cell not yet executed |
-| import `BilgePump::Library::*` fails | Cell 1 used nested packages |
+| `unresolved name '<SystemType>'` | Architecture cell not yet executed |
+| `unresolved name '<RequirementName>'` | Requirements cell not yet executed |
+| import `<Project>::Library::*` fails | Cell 1 used nested packages |
 
 ## Publishing
 `%publish` — pushes the current session model to the SST API at `http://sysml2.intercax.com:9000`.
@@ -45,8 +45,8 @@ The `STPA_Tool/` directory co-locates a **separate standalone application** (SQL
 
 | Script | Purpose | Kernel needed? |
 |---|---|---|
-| `verify.py` | Primary V&V entry point | Optional (`--fallback` skips it) |
-| `scripts/sysml_check.py` | Check a single `.sysml` file | Optional (`--fallback` skips it) |
+| `verify.py` | Primary V&V entry point | **Required** (`--fallback` is DEV/TEST only) |
+| `scripts/sysml_check.py` | Check a single `.sysml` file | Optional (`--fallback` for dev iteration) |
 | `scripts/sensor_adapter.py` | Live sensor ingestion adapter | No |
 | `scripts/bootstrap_traceability.py` | Populate `lib/traceability.json` from ingested docs | No |
 | `scripts/fault_tracer.py` | Cross-layer fault localisation | No |
@@ -65,3 +65,7 @@ pytest tests/ -m z3 -v      # Z3 tests (requires z3-solver)
 Layer execution order (fallback evaluator):
 `RAAML → Library → Architecture → Requirements → Analysis → Safety`
 FMEA.sysml and UQ.sysml are **excluded** from `validation_layers` (contain intentional violations).
+
+> **Important:** `--fallback` does NOT evaluate SysML semantics. It uses Python regex/eval
+> on `bind` statements from Analysis.sysml. Use the kernel for authoritative results.
+> Always install the kernel before sharing or publishing results.

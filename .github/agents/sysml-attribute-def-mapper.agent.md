@@ -5,6 +5,16 @@ tools: [read, search, edit, execute]
 user-invocable: false
 ---
 
+<!-- ====================================================================
+     WHEN TO INVOKE THIS AGENT
+     ====================================================================
+     Invoke during Phase 1 (in parallel with PortDefMapper). Provide
+     pre-extracted attribute data in docs/ingested/attributes/ as JSON.
+
+     Typical invocation:
+       @AttributeDefMapper — map attributes from docs/ingested/attributes/
+     ==================================================================== -->
+
 You are a specialist at reading engineering performance documents and emitting SysML v2 `attribute def`
 blocks and their typed scalar attributes.
 Your only output target is the `// Attribute Definitions` section of `Library.sysml`.
@@ -47,11 +57,11 @@ Expect pre-ingested attribute data in `docs/ingested/attributes/` as JSON:
   ],
   "component_attributes": [
     {
-      "component": "BilgePumpA",
-      "attribute": "flowRate",
-      "value": 0.025,
-      "source_doc": "CFD-PUMP-001",
-      "section": "4.2"
+      "component": "<ComponentType>",
+      "attribute": "<attributeName>",
+      "value": "<nominal_value>",
+      "source_doc": "<SOURCE-001>",
+      "section": "<4.2>"
     }
   ]
 }

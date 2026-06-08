@@ -5,6 +5,16 @@ tools: [read, search, edit]
 user-invocable: false
 ---
 
+<!-- ====================================================================
+     WHEN TO INVOKE THIS AGENT
+     ====================================================================
+     Invoke during Phase 1 after PortDefMapper and AttributeDefMapper are
+     done. Provide BOM/component data in docs/ingested/components/ as JSON.
+
+     Typical invocation:
+       @PartDefMapper — map components from docs/ingested/components/
+     ==================================================================== -->
+
 You are a specialist at reading engineering component documents and emitting SysML v2 `part def`
 blocks that assemble port slots (from PortDefMapper) and attribute slots (from AttributeDefMapper).
 Your only output target is the `// Part Definitions` section of `Library.sysml`.
@@ -44,8 +54,8 @@ Expect pre-ingested component data in `docs/ingested/components/` as JSON:
 {
   "components": [
     {
-      "name": "BilgeWaterSensor",
-      "description": "Measures water accumulation depth in the bilge",
+      "name": "<SensorPartType>",
+      "description": "<Measures the physical quantity being monitored>",
       "ports": [
         { "name": "levelOut", "type": "LevelSignalPort", "direction": "out" }
       ],

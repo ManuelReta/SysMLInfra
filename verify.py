@@ -2,25 +2,29 @@
 """
 verify.py — Local-first SysML v2 verification engine.
 
-Primary entry point for the BilgePumpSystem model. Runs entirely locally — the
+Reusable MBSE verification entry point. Runs entirely locally — the
 remote SST API is NOT required for verification.
 
 Usage:
     python verify.py                  # kernel execution, validation_layers (positive test)
-    python verify.py --negative       # inject pumpA.flowRate=0 (pump A failure simulation)
+    python verify.py --negative       # inject fault via bind override (failure simulation)
     python verify.py --all            # include FMEA negative tests + UQ sweep
-    python verify.py --fallback       # Python regex/eval only (no kernel needed)
+    python verify.py --fallback       # Python regex/eval only (DEV/TEST use only — see WARNING)
+    python verify.py --require-kernel # exit code 2 if SysML v2 kernel is not installed
     python verify.py --dry-run        # list layers, check files — do not run kernel
     python verify.py --visual         # also generate system/traceability diagrams
     python verify.py --publish        # push committed layers to SST API after verification
 
 Prerequisites:
-    Kernel path (default):
+    Kernel path (default — REQUIRED for real verification):
         conda env sysmlv2 with jupyter-sysml-kernel=0.58.0
         (installed by setup.sh)
-    Fallback (--fallback):
-        No extra dependencies — stdlib only.
-    Visual (--visual):
+    Fallback (——fallback):
+        FOR DEVELOPMENT AND TESTING ONLY.
+        Python regex/eval cannot perform SysML type checking or catch syntax
+        errors. Runs without extra dependencies (stdlib only) but results are
+        not authoritative. Always validate with the kernel before release.
+    Visual (——visual):
         pip install networkx  (matplotlib already in requirements.txt)
 
 Exit codes:
@@ -518,7 +522,8 @@ def _dry_run(name: str, layers: list, validation_layers: list | None) -> None:
 
 def _run_z3_analysis(bind_values: dict | None, verbose: bool) -> None:
     """
-    Import and run bilgepump/formal_analysis.py as a module.
+    Import and run the project's formal_analysis.py module.
+    Derives the path from the z3_layers key in sysml-project.yml.
     Prints a gap-report section after the SysML requirement results.
 
     bind_values: optional dict of overrides (full-path keys from Analysis.sysml
@@ -526,21 +531,46 @@ def _run_z3_analysis(bind_values: dict | None, verbose: bool) -> None:
     """
     import importlib as _il
 
-    _bilgepump_dir = os.path.join(REPO_ROOT, 'bilgepump')
-    if not os.path.exists(os.path.join(_bilgepump_dir, 'formal_analysis.py')):
-        print(yellow('  WARNING: bilgepump/formal_analysis.py not found — skipping Z3 analysis.'))
+    # Derive formal_analysis location from sysml-project.yml z3_layers key
+    _z3_path: str | None = None
+    try:
+        with open(MANIFEST) as _mf:
+            _in_z3 = False
+            for _line in _mf:
+                _s = _line.strip()
+                if _s == 'z3_layers:':
+                    _in_z3 = True
+                    continue
+                if _in_z3 and _s.startswith('- '):
+                    _z3_path = _s[2:].strip()
+                    break
+                if _in_z3 and _s and not _s.startswith('#') and not _s.startswith('-'):
+                    _in_z3 = False
+    except Exception:
+        pass
+
+    if _z3_path is None:
+        print(yellow('  WARNING: No z3_layers entry in sysml-project.yml — skipping Z3 analysis.'))
         return
 
-    # Add bilgepump/ to sys.path so importlib.import_module can find formal_analysis
-    if _bilgepump_dir not in sys.path:
-        sys.path.insert(0, _bilgepump_dir)
+    _z3_abs = os.path.join(REPO_ROOT, _z3_path)
+    if not os.path.exists(_z3_abs):
+        print(yellow(f'  WARNING: {_z3_path} not found — skipping Z3 analysis.'))
+        return
+
+    _z3_dir = os.path.dirname(_z3_abs)
+    _z3_module = os.path.splitext(os.path.basename(_z3_abs))[0]
+
+    # Add the module's directory to sys.path so importlib can find it
+    if _z3_dir not in sys.path:
+        sys.path.insert(0, _z3_dir)
 
     try:
         # Reload if already cached (supports repeated --z3 calls in the same process)
-        if 'formal_analysis' in sys.modules:
-            _mod = _il.reload(sys.modules['formal_analysis'])
+        if _z3_module in sys.modules:
+            _mod = _il.reload(sys.modules[_z3_module])
         else:
-            _mod = _il.import_module('formal_analysis')
+            _mod = _il.import_module(_z3_module)
     except Exception as exc:
         print(yellow(f'  WARNING: Could not load formal_analysis.py: {exc}'))
         return
@@ -590,7 +620,9 @@ def main() -> None:
     parser.add_argument('--all',      action='store_true',
                         help='Run ALL layers including FMEA negative tests + UQ sweep')
     parser.add_argument('--fallback', action='store_true',
-                        help='Use Python regex/eval only; do not start the SysML kernel')
+                        help='Use Python regex/eval only (DEV/TEST use only; see WARNING in output)')
+    parser.add_argument('--require-kernel', action='store_true',
+                        help='Exit with code 2 if the SysML v2 kernel is not installed (no fallback)')
     parser.add_argument('--visual',   action='store_true',
                         help='Generate system topology and traceability diagrams')
     parser.add_argument('--publish',  action='store_true',
@@ -654,13 +686,36 @@ def main() -> None:
     # ── Engine selection ───────────────────────────────────────────────────────
     use_kernel = not args.fallback
     kernel_name: str | None = None
+    if args.fallback:
+        print()
+        print(yellow('═' * 66))
+        print(yellow('  ⚠  WARNING: --fallback active — Python regex/eval ONLY'))
+        print(yellow('  ─' * 64))
+        print(yellow('  This mode does NOT evaluate SysML v2 semantics or types.'))
+        print(yellow('  For development and testing iteration ONLY.'))
+        print(yellow('  Use the SysML v2 kernel for authoritative results.'))
+        print(yellow('═' * 66))
     if use_kernel:
         kernel_name = _discover_sysml_kernel()
         if kernel_name is None:
-            print(yellow(
-                '  WARNING: No SysML v2 kernel found — falling back to Python regex/eval.\n'
-                '  Run setup.sh to install the kernel, or use --fallback to suppress this warning.'
-            ))
+            if getattr(args, 'require_kernel', False):
+                print()
+                print(red('═' * 66))
+                print(red('  ERROR: SysML v2 kernel NOT FOUND'))
+                print(red('  ─' * 64))
+                print(red('  ——require-kernel was set: refusing to fall back to Python eval.'))
+                print(red('  The Python fallback cannot perform SysML type checking.'))
+                print(red('  Install the kernel:  bash setup.sh  (requires Java 21 + Miniconda)'))
+                print(red('═' * 66))
+                sys.exit(2)
+            print()
+            print(yellow('═' * 66))
+            print(yellow('  WARNING: SysML v2 kernel NOT FOUND — running Python fallback'))
+            print(yellow('  ─' * 64))
+            print(yellow('  The fallback is for development iteration ONLY.'))
+            print(yellow('  Real constraint evaluation requires the SysML v2 kernel.'))
+            print(yellow('  Install:  bash setup.sh  (requires Java 21 + Miniconda)'))
+            print(yellow('═' * 66))
             use_kernel = False
 
     engine_label = f'SysML v2 kernel ({kernel_name})' if use_kernel else 'Python regex/eval (fallback)'

@@ -5,6 +5,16 @@ tools: [read, search, edit, execute]
 user-invocable: false
 ---
 
+<!-- ====================================================================
+     WHEN TO INVOKE THIS AGENT
+     ====================================================================
+     Invoke during Phase 3 (in parallel with RequirementMapper). Provide
+     physics/math models as JSON in docs/ingested/constraints/.
+
+     Typical invocation:
+       @ConstraintMapper — map equations from docs/ingested/constraints/
+     ==================================================================== -->
+
 You are a specialist at reading engineering physics and math documents and emitting SysML v2
 `constraint def` blocks containing parametric equations.
 Your only output target is the `constraint def` section of `Analysis.sysml`.
@@ -131,7 +141,7 @@ When `docs/ingested/fmea/fmea-constraints.json` exists:
 
 ### FMEA Output Pattern
 
-Emit in `FMEA.sysml` inside package `'BilgePump::FMEA'`.
+Emit in `FMEA.sysml` inside package `'<Project>::FMEA'`.
 Annotate with `#FaultTree` metadata if a fault tree top event is provided:
 
 ```sysml

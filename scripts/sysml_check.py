@@ -16,20 +16,20 @@ Exit codes:
   2 — configuration error (missing manifest, file not found)
 
 Usage:
-    python scripts/sysml_check.py bilgepump/Analysis.sysml
-    python scripts/sysml_check.py bilgepump/FMEA.sysml --expect-violations
-    python scripts/sysml_check.py bilgepump/Architecture.sysml --fallback
-    python scripts/sysml_check.py bilgepump/Requirements.sysml bilgepump/Safety.sysml
+    python scripts/sysml_check.py examples/bilgepump/Analysis.sysml
+    python scripts/sysml_check.py examples/bilgepump/FMEA.sysml --expect-violations
+    python scripts/sysml_check.py examples/bilgepump/Architecture.sysml --fallback
+    python scripts/sysml_check.py examples/bilgepump/Requirements.sysml examples/bilgepump/Safety.sysml
 
 Examples:
     # Quick syntax + requirement check (no kernel):
-    python scripts/sysml_check.py bilgepump/Analysis.sysml --fallback
+    python scripts/sysml_check.py examples/bilgepump/Analysis.sysml --fallback
 
     # Check a negative-test file (intentional VIOLATED assertions — exit 0):
-    python scripts/sysml_check.py bilgepump/FMEA.sysml --expect-violations
+    python scripts/sysml_check.py examples/bilgepump/FMEA.sysml --expect-violations
 
     # Full kernel check of a single layer:
-    python scripts/sysml_check.py bilgepump/Requirements.sysml
+    python scripts/sysml_check.py examples/bilgepump/Requirements.sysml
 """
 
 from __future__ import annotations
@@ -124,8 +124,14 @@ def _print_result(target: str, results: list[dict], expect_violations: bool) -> 
 def _check_with_kernel(layer_set: list[str]) -> tuple[bool, list[dict]]:
     kernel_name = verify._discover_sysml_kernel()
     if kernel_name is None:
-        print("WARNING: No SysML v2 kernel found — falling back to Python evaluator.",
-              file=sys.stderr)
+        print()
+        print("\033[33m" + "═" * 66 + "\033[0m")
+        print("\033[33m  WARNING: SysML v2 kernel NOT FOUND — running Python fallback\033[0m")
+        print("\033[33m  " + "─" * 64 + "\033[0m")
+        print("\033[33m  The fallback is for development iteration ONLY.\033[0m")
+        print("\033[33m  Real constraint evaluation requires the SysML v2 kernel.\033[0m")
+        print("\033[33m  Install:  bash setup.sh  (requires Java 21 + Miniconda)\033[0m")
+        print("\033[33m" + "═" * 66 + "\033[0m")
         return False, []
     all_ok, _ = verify._run_kernel(layer_set, kernel_name)
     # Also run fallback to extract per-requirement results for printing
@@ -182,6 +188,14 @@ def main() -> None:
 
         if args.fallback or args.expect_violations:
             # Python fallback: fast, no kernel startup
+            if args.fallback:
+                print()
+                print("\033[33m" + "═" * 66 + "\033[0m")
+                print("\033[33m  WARNING: ——fallback active — Python regex/eval only\033[0m")
+                print("\033[33m  " + "─" * 64 + "\033[0m")
+                print("\033[33m  For development and testing ONLY.\033[0m")
+                print("\033[33m  Always validate with the SysML v2 kernel before release.\033[0m")
+                print("\033[33m" + "═" * 66 + "\033[0m")
             results = verify._run_fallback(layer_set, negative=args.expect_violations)
         else:
             # Try kernel first; fall back to Python on kernel absence

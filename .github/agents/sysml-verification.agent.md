@@ -5,6 +5,17 @@ tools: [read, search, edit, execute]
 user-invocable: false
 ---
 
+<!-- ====================================================================
+     WHEN TO INVOKE THIS AGENT
+     ====================================================================
+     Invoke during Phase 6.5 after the TraceabilityAgent gate is open.
+     Runs the SysML v2 model against the Pilot API and captures
+     SATISFIED/VIOLATED results for each requirement.
+
+     Typical invocation:
+       @VerificationAgent — run verification against localhost:9000
+     ==================================================================== -->
+
 You are a specialist at executing the committed SysML v2 model against the Pilot API REST server
 and interpreting requirement verification results.
 You produce a structured results file that the Orchestrator uses for failure routing.
@@ -19,7 +30,7 @@ With the tools available:
 - Write structured results to `lib/verification-results.json`
 - Update `lib/build-state.json` with the final gate status
 
-The API interaction pattern is already proven in this project's [Verification.ipynb](../../Verification.ipynb).
+The API interaction pattern is already proven in this project's `examples/bilgepump/Verification.ipynb`.
 Reuse those exact HTTP call patterns — do not invent new endpoints.
 
 ## Tools You Would Need But Don't Have Yet
@@ -81,15 +92,15 @@ the exact payload structure.
 Write results to `lib/verification-results.json`:
 ```json
 {
-  "run_timestamp": "2026-05-05T12:00:00Z",
-  "model_revision": "commit hash or file timestamp",
+  "run_timestamp": "<ISO datetime>",
+  "model_revision": "<commit hash or file timestamp>",
   "results": [
     {
-      "analysis_def": "BilgePumpVerification",
-      "requirement_id": "BPS-REQ-001",
-      "requirement_name": "WaterLevelRequirement",
+      "analysis_def": "<ProjectName>Verification",
+      "requirement_id": "<PRJ-REQ-001>",
+      "requirement_name": "<RequirementName>",
       "result": "SATISFIED | VIOLATED",
-      "bound_values": { "sys.sensor.waterLevel": 0.15 },
+      "bound_values": { "sys.<component>.<attribute>": <value> },
       "failure_detail": null
     }
   ],

@@ -1,7 +1,7 @@
 """
 tests/unit/test_formal_analysis.py
 
-Unit tests for bilgepump/formal_analysis.py.
+Unit tests for examples/bilgepump/formal_analysis.py.
 Skipped automatically if z3-solver is not installed.
 """
 import pytest

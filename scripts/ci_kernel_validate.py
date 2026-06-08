@@ -29,7 +29,7 @@ Requirements (CI):
 Known limitations:
   - RAAML 'metadata def' syntax requires SysML v2 Pilot JAR >= 2022-06.
     If the kernel rejects RAAML.sysml, replace 'metadata def' with 'attribute def'
-    (see fallback mode documented in bilgepump/RAAML.sysml).
+    (see fallback mode documented in examples/bilgepump/RAAML.sysml).
   - The kernel validates syntax and positive-test assertions only.  Constraint
     expressions in verify.sh and Safety.ipynb are evaluated in Python, not by
     the kernel — they use regex + eval and do not have full SysML type semantics.

@@ -2,15 +2,16 @@
 """
 bootstrap_traceability.py — Populate lib/traceability.json from ingested docs.
 
-Parses the structured JSON documents in bilgepump/docs/ingested/ and writes a
+Parses the structured JSON documents in the project's ingested docs directory
+and writes a
 populated traceability index to lib/traceability.json.  This unblocks the
 TraceabilityAgent gate (which requires non-empty portDefs, attributeDefs,
 partDefs, requirements, and connections arrays).
 
 Ingested sources:
-  bilgepump/docs/ingested/requirements/solas-regulatory-extract.json
+  examples/bilgepump/docs/ingested/requirements/solas-regulatory-extract.json
     → requirements[], constraintDefs[]
-  bilgepump/docs/ingested/components/bom-component-list.json
+  examples/bilgepump/docs/ingested/components/bom-component-list.json
     → partDefs[], portDefs[], attributeDefs[]
 
 Also updates lib/build-state.json:
@@ -32,9 +33,29 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 REPO_ROOT      = Path(__file__).parent.parent.resolve()
-INGESTED_DIR   = REPO_ROOT / "bilgepump" / "docs" / "ingested"
 TRACEABILITY   = REPO_ROOT / "lib" / "traceability.json"
 BUILD_STATE    = REPO_ROOT / "lib" / "build-state.json"
+
+# Derive ingested-docs directory from the first layer in sysml-project.yml.
+# The convention is: layers live at  examples/<project>/*.sysml,
+# so the ingested docs are at        examples/<project>/docs/ingested/
+def _derive_ingested_dir() -> Path:
+    manifest = REPO_ROOT / "sysml-project.yml"
+    try:
+        with open(manifest) as fh:
+            for line in fh:
+                s = line.strip()
+                if s.startswith('- ') and s.endswith('.sysml'):
+                    first_layer = Path(s[2:].strip())
+                    return REPO_ROOT / first_layer.parent / "docs" / "ingested"
+    except Exception:
+        pass
+    # Fallback: look for any docs/ingested under examples/
+    for p in (REPO_ROOT / "examples").glob("*/docs/ingested"):
+        return p
+    return REPO_ROOT / "docs" / "ingested"
+
+INGESTED_DIR = _derive_ingested_dir()
 
 REQUIREMENTS_JSON = INGESTED_DIR / "requirements" / "solas-regulatory-extract.json"
 COMPONENTS_JSON   = INGESTED_DIR / "components" / "bom-component-list.json"

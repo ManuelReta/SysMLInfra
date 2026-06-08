@@ -2,10 +2,14 @@
 # .gitignore — SysML v2 infrastructure repository
 # =============================================================================
 
-# Runtime state written by commit.sh / verify.sh — never committed.
-# Developers download lib/commit-ids.json from the Actions artifact after
-# a successful publish-to-api.yml run.
-lib/
+# Separate standalone application — not part of SysMLInfra.
+# Stays on the developer's local disk; never pushed to this repository.
+STPA_Tool/
+
+# Runtime state written by verify.py / commit.sh — re-generated on every run.
+# lib/.gitkeep is committed so the directory exists on a fresh clone.
+lib/*
+!lib/.gitkeep
 
 # Python bytecode
 __pycache__/

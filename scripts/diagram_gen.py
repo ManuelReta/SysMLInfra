@@ -8,7 +8,7 @@ Generates three diagrams from the parsed .sysml model files using NetworkX + mat
                               the component instances they constrain
   3. traceability.png       — Requirements ↔ UCAs ↔ FMEA failure modes
 
-Output directory: bilgepump/docs/   (created if absent)
+Output directory: <first_layer_dir>/docs/   (derived at runtime; created if absent)
 
 Dependencies: networkx, matplotlib  (both in requirements.txt)
 """
@@ -212,7 +212,7 @@ def _diagram_system_topology(
     ax.legend(handles=legend_entries, loc='lower left', fontsize=7.5,
               framealpha=0.8, title='Part instances')
 
-    ax.set_title('BilgePump System — Architecture Topology', fontsize=13, fontweight='bold')
+    ax.set_title('SysML v2 System — Architecture Topology', fontsize=13, fontweight='bold')
     ax.axis('off')
     fig.tight_layout()
     fig.savefig(out_path, dpi=140, bbox_inches='tight')

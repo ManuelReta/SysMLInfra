@@ -1,58 +1,82 @@
 # SysMLInfra
 
-A **local-first SysML v2 CI/CD infrastructure** with a maritime bilge pump system as the reference project.
+A **reusable SysML v2 MBSE framework** for building traceable, kernel-verified system models
+from engineering source documents, with CI/CD integration and AI-assisted model generation.
+
+> **The SysML v2 Jupyter kernel is required.**
+> Without it, `assert requirement` statements cannot be evaluated.
+> The Python regex/eval fallback (`--fallback`) is for development and CI iteration ONLY.
+> Run `bash setup.sh` first — it installs and validates the kernel.
 
 | Layer | Contents | Who touches it |
 |---|---|---|
-| **Infrastructure** (root) | `verify.py`, `setup.sh`, `scripts/`, `.github/workflows/`, `sysml-project.yml` | Anyone reusing this for a new SysML v2 project |
-| **BilgePump model** (`bilgepump/`) | Nine `.sysml` layers, Jupyter notebooks, engineering source documents | Systems engineers working on this specific system |
+| **Framework** (root) | `verify.py`, `setup.sh`, `scripts/`, `.github/workflows/`, `sysml-project.yml` | Anyone reusing for a new SysML v2 project |
+| **Reference example** (`examples/bilgepump/`) | Nine `.sysml` layers, Jupyter notebooks, engineering source documents | Engineers exploring or adapting the framework |
 
 ---
 
-## Quick Start
+## Prerequisites (REQUIRED before anything else)
 
-### Step 1 — Install prerequisites
+| Requirement | Why |
+|---|---|
+| **Miniconda** (`~/miniconda3`) | Creates the `sysmlv2` conda environment |
+| **Java 21+** | Powers the SysML v2 kernel JAR |
+| **Python 3.8+** | Runs `verify.py`, scripts, and tests |
+
+Install Miniconda: <https://repo.anaconda.com/miniconda/>
+Install Java 21: `sudo apt-get install openjdk-21-jre-headless`
+
+Then run setup — it enforces these requirements and exits with a clear error if anything is missing:
 
 ```bash
 bash setup.sh
 ```
 
-This checks Python 3, installs pip dependencies (`requirements.txt`), and installs the SysML v2 Jupyter kernel into a `sysmlv2` conda environment. Requires Miniconda at `~/miniconda3` and Java 21 for the kernel step — if these are absent, verification still works via the Python fallback (see below).
+Setup installs the `jupyter-sysml-kernel=0.58.0` into a `sysmlv2` conda environment, registers
+the `sysml` kernel spec, and validates with `jupyter kernelspec list`. **It will exit non-zero
+if the kernel cannot be registered.**
 
-### Step 2 — Run the model
+---
+
+## Quick Start (reference example)
 
 ```bash
-python3 verify.py
+# Verify the bilge pump reference model against all requirements:
+python verify.py
+
+# Run the negative test — inject a pump failure:
+python verify.py --negative
+
+# Check all layer files exist without running the kernel:
+python verify.py --dry-run
+
+# Run unit and model tests (no kernel required):
+pytest tests/ -v
 ```
 
-That's it. The engine automatically:
-1. Detects the registered `sysml` Jupyter kernel
-2. Compiles all 7 `validation_layers` through the kernel (syntax, imports, `assert requirement`)
-3. Extracts per-requirement pass/fail status for structured output and fault tracing
-4. Writes `lib/verification-results.json`
+Expected output:
 
-**Expected output:**
 ```
 ════════════════════════════════════════════════════════════════════
-  SysML v2 Verification — BilgePumpSystem
+  SysML v2 Verification
 ════════════════════════════════════════════════════════════════════
   Engine  : SysML v2 kernel (sysml)
   Mode    : positive test (validation_layers)
 ────────────────────────────────────────────────────────────────────
 
-  Starting SysML v2 kernel — this takes ~10 s on first run...
-
   Kernel layer compilation:
     ✓  RAAML.sysml
     ✓  Library.sysml
-    ...
+    ✓  Architecture.sysml
+    ✓  Requirements.sysml
+    ✓  Analysis.sysml
+    ✓  Safety.sysml
     ✓  StateMachine.sysml
 
   Requirement evaluation:
   ──────────────────────────────────────────────────────────────────
-  ✓  SATISFIED   BPS-REQ-001  Water level ≤ 0.30 m
-  ✓  SATISFIED   BPS-REQ-002  Pump B redundancy active
-  ...
+  ✓  SATISFIED   <REQ-001>  ...
+  ✓  SATISFIED   <REQ-002>  ...
   ──────────────────────────────────────────────────────────────────
   Overall:  ALL SATISFIED ✓
 ```
@@ -62,113 +86,97 @@ That's it. The engine automatically:
 | Flag | What it does |
 |---|---|
 | *(none)* | Kernel run, positive test — all `validation_layers` |
-| `--negative` | Inject `pumpA.flowRate = 0` (pump A failure); show fault trace to UCA + FMEA |
-| `--visual` | Also generate 3 diagrams in `bilgepump/docs/` (requires networkx) |
+| `--negative` | Inject a component failure; show fault trace to UCA + FMEA |
+| `--visual` | Also generate topology/traceability diagrams |
 | `--dry-run` | List layer files and sizes; do not start kernel |
-| `--fallback` | Python regex/eval only — no kernel required (useful without Miniconda/Java) |
-| `--all` | Run all 9 layers including FMEA negative tests and UQ sweep |
-| `--publish` | After verification, push model to SST API (optional, no auth needed) |
+| `--require-kernel` | Exit code 2 if kernel not found (use in CI to hard-fail) |
+| `--fallback` | Python regex/eval **DEV/TEST only** — does not evaluate SysML semantics |
+| `--all` | Run all layers including negative-test (FMEA) and UQ sweep |
+| `--publish` | After verification, push model to SST API (optional) |
 | `--verbose` | Show constraint expression under each requirement result |
-| `--z3` | Run Z3 SMT formal analysis (6 levels) after SysML verification (requires `z3-solver`) |
-| `--live CONFIG` | Load bind values from a live sensor adapter config (see `scripts/sensor_adapter.py`) |
-
-### Simulating a fault (negative test)
-
-```bash
-python3 verify.py --negative
-```
-
-Overrides `pumpA.flowRate = 0` and shows which requirement is violated plus a full safety trace:
-
-```
-  ✗  VIOLATED    BPS-REQ-004  Discharge ≥ design inflow
-
-  Safety Fault Trace — Negative Test
-  ✗ DischargeCapacityRequirement
-  Constraint : (sys.pumpA.flowRate + sys.pumpB.flowRate) >= designInflow
-  Defined at  : bilgepump/Requirements.sysml:124
-  Bind values :
-    sys.pumpA.flowRate = 0.0  [[negative-test override]:0]  ◀ FAULT
-    sys.pumpB.flowRate = 0.025  [bilgepump/UQ.sysml:446]
-  UCA trace   :
-    UCA-001 — ActivatePumpA (Not Provided) → hazards: H-1,HS-1
-    ...
-  FMEA trace  :
-    FM-C-003 — Failover path not triggered (S=9 O=2 D=5 RPN=90)
-```
-
-### Without Miniconda/Java (fallback mode)
-
-If the SysML kernel is not installed, `verify.py` automatically falls back to Python regex/eval and prints a one-line warning. You can also request it explicitly:
-
-```bash
-python3 verify.py --fallback
-```
-
-The fallback evaluates `require constraint` expressions by parsing `bind` statements from `Analysis.sysml` and evaluating arithmetic in Python. It does **not** run the SysML v2 type checker — use the kernel for authoritative results.
-
-### Unit and model tests (no kernel required)
-
-```bash
-# All unit + model tests (~15 s):
-pytest tests/ -v
-
-# Unit tests only (~5 s):
-pytest tests/unit/ -v
-
-# Model fallback tests only (~10 s):
-pytest tests/model/ -v
-
-# Z3 formal analysis tests (requires z3-solver):
-pytest tests/ -m z3 -v
-```
-
-Tests cover `verify.py` helpers (`_eval_requirement`, `_build_bind_values`, `_read_manifest`, `_save_results`), `fault_tracer.py` bind index parsing, `formal_analysis.py` level outcomes, and the full Python fallback evaluator positive/negative test matrix.
-
-### Checking a single .sysml file
-
-```bash
-# Quick syntax + requirement check, no kernel (~1 s):
-python scripts/sysml_check.py bilgepump/Analysis.sysml --fallback
-
-# Full kernel check:
-python scripts/sysml_check.py bilgepump/Requirements.sysml
-
-# Negative-test file (expect violations — exit 0 when violations present):
-python scripts/sysml_check.py bilgepump/FMEA.sysml --expect-violations
-
-# Check multiple files:
-python scripts/sysml_check.py bilgepump/Architecture.sysml bilgepump/Safety.sysml
-```
-
-### Z3 formal analysis
-
-```bash
-python3 verify.py --fallback --z3
-```
-
-Runs 6 escalating Z3 SMT levels after the fallback evaluation, writing a gap report to `lib/z3-analysis-results.json`. Requires `pip install z3-solver`. The 6 levels cover: symbolic baseline proof (L1), efficiency floor discovery (L2), parametric accuracy envelope (L3), cross-component timing window (L4), adversarial counterexample for original REQ set (L5 — G-5 closed by BPS-FT-002), and bounded temporal override ordering (L6 — closed by `OverrideOrderingRequirement`).
-
-### Live sensor mode
-
-```bash
-python scripts/sensor_adapter.py --demo           # mock demo (6 scenarios)
-python3 verify.py --fallback --live sensors.json  # real sensor snapshot + V&V
-```
-
-The sensor adapter connects to MQTT, OPC-UA, or REST endpoints and normalises readings into SysML bind values. See `scripts/sensor_adapter.py` for the full config schema. Demo mode runs without hardware.
+| `--z3` | Run Z3 SMT formal analysis after SysML verification (requires `z3-solver`) |
+| `--live CONFIG` | Load bind values from a live sensor adapter config |
 
 ---
 
-## Step 3 — Build the model from scratch (cold start)
+## Starting a New Project
 
-To build the `.sysml` layers from engineering source documents, open a GitHub Copilot chat in agent mode and invoke:
+1. **Clone this repository**
+
+2. **Run setup** (kernel install + Python deps):
+   ```bash
+   bash setup.sh
+   ```
+
+3. **Create your project directory** under `examples/`:
+   ```
+   examples/
+     myproject/
+       docs/ingested/    ← place pre-extracted engineering documents here
+       Library.sysml     ← framework generates these from docs
+       Architecture.sysml
+       Requirements.sysml
+       Analysis.sysml
+   ```
+
+4. **Edit `sysml-project.yml`**:
+   ```yaml
+   name: MyProject
+   layers:
+     - examples/myproject/RAAML.sysml
+     - examples/myproject/Library.sysml
+     - examples/myproject/Architecture.sysml
+     - examples/myproject/Requirements.sysml
+     - examples/myproject/Analysis.sysml
+   validation_layers:
+     - examples/myproject/Library.sysml
+     - examples/myproject/Architecture.sysml
+     - examples/myproject/Requirements.sysml
+     - examples/myproject/Analysis.sysml
+   ```
+
+5. **Invoke the Copilot Orchestrator** to build the model from your documents:
+   ```
+   @SysML Orchestrator — run full pipeline on examples/myproject/docs/ingested/
+   ```
+
+6. **Verify**:
+   ```bash
+   python verify.py
+   ```
+
+### SysML v2 Layer Architecture
+
+Every SysML v2 project built with this framework uses this 9-layer structure.
+The flat-package rule is mandatory (see [CLAUDE.md](CLAUDE.md)):
 
 ```
-@SysML Orchestrator — run full pipeline on ./docs/ingested/
+RAAML.sysml          ← RAAML v1.0 metadata def stereotypes (no imports)
+Library.sysml        ← all part def, port def, attribute def
+Architecture.sysml   ← system composition (part usages + connect)
+Requirements.sysml   ← requirement def blocks with require constraint
+Analysis.sysml       ← constraint def + analysis def (bind + assert)
+Safety.sysml         ← STPA losses, hazards, UCA-derived requirements
+FMEA.sysml           ← RPN/reliability constraints (negative tests — excluded from CI gate)
+UQ.sysml             ← parametric uncertainty sweep (excluded from CI gate)
+StateMachine.sysml   ← state def + transition blocks
 ```
 
-The Orchestrator scans all `bilgepump/docs/ingested/` subdirectories, determines which mapper agents to activate, writes the phase schedule to `lib/build-state.json`, and delegates in dependency order:
+**Execution order is strict.** Each layer imports from all prior layers via the flat-package rule:
+```sysml
+private import <Project>_Library::*;
+private import <Project>_Architecture::*;
+```
+
+---
+
+## AI-Assisted Model Generation (Copilot Agents)
+
+The `.github/agents/` directory contains 14 Copilot agent files that map engineering
+source documents to SysML v2 model elements. These agents are invoked in agent mode
+via GitHub Copilot and are reusable for any project — not bilge-pump-specific.
+
+### Agent pipeline
 
 ```
 Phase 1: PortDefMapper + AttributeDefMapper  [parallel]
@@ -178,305 +186,166 @@ Phase 1: PortDefMapper + AttributeDefMapper  [parallel]
                              └─► Phase 4: AllocationMapper
                                    └─► Phase 5: AnalysisMapper  [nominal + FMEA + STPA + UQ]
                                          └─► Phase 6: TraceabilityAgent + VerificationAgent
-                                               └─► Phase 7: AnalysisMapper-UQ  [optional]
+                                               └─► Phase 7: StateMachineMapper  [optional]
 ```
 
-After all agents complete, validate:
+### Input document structure (`docs/ingested/`)
 
-```bash
-python3 scripts/ci_kernel_validate.py --dry-run   # file existence check
-python3 scripts/ci_kernel_validate.py             # kernel compilation check
-python3 verify.py                                  # full verification + results
-```
+Each subdirectory feeds a specific set of agents:
 
----
-
-## Step 4 — Update after a document change (delta run)
-
-When any file in `bilgepump/docs/ingested/` changes (new CFD export, updated FMEA table, revised regulatory extract):
-
-```
-@SysML Orchestrator — delta run, docs/ingested/fmea/ changed
-```
-
-The Orchestrator sets `"mode": "delta"` in `lib/build-state.json`, identifies affected phases, and re-runs only those agents.
-
-| Changed subdirectory | Agents re-run |
-|---|---|
-| `hazards/` | RequirementMapper-STPA → RAAMLMapper → AnalysisMapper-STPA |
-| `fmea/` | ConstraintMapper-FMEA → RAAMLMapper → AnalysisMapper-FMEA |
-| `uq/` | AnalysisMapper-UQ (Phase 7) |
-| `interfaces/` or `components/` | PortDefMapper + AttributeDefMapper → PartDefMapper |
-| `requirements/` or `constraints/` | RequirementMapper + ConstraintMapper |
-| `allocations/` | AllocationMapper |
-
-After the delta, re-run `python3 verify.py` to confirm all requirements still SATISFIED.
-
----
-
-## The BilgePump Reference Project
-
-The `bilgepump/` subfolder contains a SysML v2 model of a **maritime bilge pump system** — the automated machinery that removes water accumulating in a vessel's bilge.
-
-### Regulatory traceability
-
-| Standard | What it governs in this model |
-|---|---|
-| **SOLAS II-1** | Power redundancy — dual-feed requirement for bilge pumps |
-| **MARPOL Annex I** | Overboard discharge must be below 15 ppm oily water |
-| **DNV Rules Pt.4 Ch.6** | Redundant pump (Pump B), independent power feed, alarm table |
-| **IEC 60945 §4.3** | Alarm activation delay ≤ 2.0 s for Class A alarms |
-
-### The nine SysML v2 layers
-
-Each layer is a separate `.sysml` file listed in `sysml-project.yml`. They must be executed in strict dependency order.
-
-```
-bilgepump/RAAML.sysml          ← no imports (must be first)
-bilgepump/Library.sysml        ← imports nothing
-bilgepump/Architecture.sysml   ← imports Library
-bilgepump/Requirements.sysml   ← imports Library + Architecture
-bilgepump/Analysis.sysml       ← imports all three above
-bilgepump/Safety.sysml         ← imports RAAML + Library + Architecture + Requirements
-bilgepump/FMEA.sysml           ← imports RAAML + all above + Safety    (negative tests)
-bilgepump/UQ.sysml             ← imports Library + Architecture + Requirements + Analysis
-bilgepump/StateMachine.sysml   ← imports Library + Architecture
-```
-
-The `validation_layers` key in `sysml-project.yml` lists the 7 layers that form the positive-test set (FMEA and UQ are excluded — they contain intentional violations; run them with `--all`).
-
-| Layer | Package | Contents |
+| Subdirectory | Fed to | Produces |
 |---|---|---|
-| `RAAML.sysml` | `BilgePump_RAAML` | 6 OMG RAAML v1.0 `metadata def` stereotypes |
-| `Library.sysml` | `BilgePump_Library` | All `part def`, `port def`, `attribute def` — 8 components |
-| `Architecture.sysml` | `BilgePump_Architecture` | `BilgePumpSystem` with 8 part usages and 11 `connect` statements |
-| `Requirements.sysml` | `BilgePump_Requirements` | 4 `requirement def` blocks (BPS-REQ-001–004) |
-| `Analysis.sysml` | `BilgePump_Analysis` | `PumpFlowPhysics` constraint + `BilgePumpVerification` positive test |
-| `Safety.sysml` | `BilgePump_Safety` | STPA Losses, Hazards; 5 UCA-derived `requirement def` blocks |
-| `FMEA.sysml` | `BilgePump_FMEA` | RPN / reliability / NPSH constraints; 4 negative-test `analysis def` |
-| `UQ.sysml` | `BilgePump_UQ` | N=10 deterministic parametric uncertainty sweep |
-| `StateMachine.sysml` | `BilgePump_StateMachine` | 7-state `PumpControllerBehavior` state machine |
-
-### Notebooks (interactive exploration)
-
-These notebooks are for interactive exploration — not required for CI or verification.
-
-| Notebook | Kernel | When to use |
-|---|---|---|
-| `Analysis.ipynb` | SysML v2 | Interactive native model execution — run `assert requirement` cell-by-cell |
-| `Safety.ipynb` | Python | STPA/FMEA/UQ detailed evaluation; tabular FMEA output; UQ sweep plots |
-| `Results.ipynb` | Python | Post-verification result inspection using `lib/verification-results.json` |
-
-Open interactively:
-```bash
-bash run.sh analysis    # Analysis.ipynb (SysML v2 kernel)
-bash run.sh safety      # Safety.ipynb (Python kernel)
-```
-
----
-
-## Shell Scripts
-
-### `setup.sh` — one-time environment setup
-
-```bash
-bash setup.sh
-```
-
-1. Checks Python 3 is available
-2. Installs pip dependencies from `requirements.txt`
-3. Creates conda env `sysmlv2` with `jupyter-sysml-kernel=0.58.0` and registers the `sysml` kernel (requires Miniconda + Java 21)
-
-The SysML v2 kernel is the primary evaluation engine. Without it, `verify.py` falls back to Python regex/eval automatically.
-
-### `commit.sh` — publish the model to the SST API (optional)
-
-```bash
-bash commit.sh                         # uses http://sysml2.intercax.com:9000
-bash commit.sh http://localhost:9000   # override with a self-hosted server
-```
-
-Reads `sysml-project.yml` `layers` and POSTs all `.sysml` files to the SST API. Writes `lib/commit-ids.json`. This is **not required for local verification** — `verify.py` runs entirely offline. Use `verify.py --publish` for the equivalent one-step operation.
-
-**Note:** `http://sysml2.intercax.com:9000` is a public research server with no uptime SLA. It stores model text verbatim — it does not parse, compile, or evaluate SysML.
-
-### `run.sh` — open a notebook interactively
-
-```bash
-bash run.sh analysis    # Analysis.ipynb (SysML v2 kernel)
-bash run.sh safety      # Safety.ipynb   (Python kernel)
-```
+| `interfaces/` | PortDefMapper | `port def` blocks in Library.sysml |
+| `attributes/` | AttributeDefMapper | `attribute def` blocks in Library.sysml |
+| `components/` | PartDefMapper | `part def` blocks in Library.sysml |
+| `connections/` | ConnectMapper | `connect` statements in Architecture.sysml |
+| `requirements/` | RequirementMapper | `requirement def` in Requirements.sysml |
+| `constraints/` | ConstraintMapper | `constraint def` in Analysis.sysml |
+| `allocations/` | AllocationMapper | `allocate`/`satisfy` in Architecture.sysml |
+| `analyses/` | AnalysisMapper | `analysis def` blocks in Analysis.sysml |
+| `hazards/` | RequirementMapper-STPA, RAAMLMapper | Safety.sysml |
+| `fmea/` | ConstraintMapper-FMEA, RAAMLMapper | FMEA.sysml |
+| `states/` | StateMachineMapper | StateMachine.sysml |
 
 ---
 
 ## CI/CD Pipeline
 
 ```
-  Developer opens PR touching *.sysml / tests/** / requirements-ci.txt
-           │
-           ▼
-  ┌─────────────────────┐
-  │  unit-tests         │
-  │  ~15 seconds        │
-  │  Python 3.11, no JVM│
-  │  pytest tests/ -x   │
-  └────────┬────────────┘
-           │ pass
-           ▼
-  ┌────────────────────┐   ┌─────────────────────────────────────────────┐
-  │  check-manifest    │   │  validate-sysml  (needs check-manifest pass) │
-  │  ~4 seconds        │──▶│  conda + Java 21 + SysML v2 kernel  ~52s    │
-  │  stdlib Python     │   │  Runs validation_layers only (see below)     │
-  │  - files exist?    │   │  - syntax valid?                             │
-  │  - manifest valid? │   │  - imports resolve?                          │
-  └────────────────────┘   │  - positive-test assertions pass?            │
-                            └─────────────────────────────────────────────┘
-           │
-    All three green?
-     Yes → PR can be merged
-     No  → PR is blocked
-           │
-           ▼  (merge to main only — optional)
-  publish-to-api.yml
-  - bash commit.sh (reads sysml-project.yml 'layers' — all 9)
-  - POST all layers to SysML v2 API
-  - Upload lib/commit-ids.json as Actions artifact
+PR opened touching *.sysml / tests/** / requirements-ci.txt
+         │
+         ▼
+  ┌───────────────┐
+  │  unit-tests   │  pytest tests/ -x   (~15 s, no kernel)
+  └───────┬───────┘
+          │ pass
+          ▼
+  ┌──────────────────┐   ┌──────────────────────────────────────┐
+  │ check-manifest   │──▶│ validate-sysml                       │
+  │ (~4 s)           │   │ conda + Java 21 + SysML v2 kernel    │
+  │ - files exist?   │   │ validation_layers only  (~52 s)      │
+  │ - manifest valid?│   │ - syntax + imports + assert req pass?│
+  └──────────────────┘   └──────────────────────────────────────┘
+          │ all green → merge allowed
+          ▼  (merge to main — optional)
+  publish-to-api.yml  →  POST all layers to SST API
 ```
 
-**Why `validation_layers` excludes FMEA and UQ:** `FMEA.sysml` contains 4 negative-test `analysis def` blocks that assert VIOLATED requirements by design. `UQ.sysml` has `UQ_Sweep_10` which violates `DischargeCapacityRequirement` at combined 3σ. Both would cause false CI failures if fed to the kernel.
-
-### Setting up for a new project
-
-1. Copy the infrastructure files:
-   ```
-   sysml-project.yml  verify.py  setup.sh  commit.sh  pyproject.toml
-   scripts/ci_kernel_validate.py  scripts/fault_tracer.py  scripts/diagram_gen.py
-   scripts/sysml_check.py  scripts/sensor_adapter.py  scripts/bootstrap_traceability.py
-   requirements.txt  requirements-ci.txt
-   .github/workflows/validate-pr.yml
-   tests/  (copy the whole directory)
-   ```
-
-2. Edit `sysml-project.yml` for your project:
-   ```yaml
-   name: MyProject
-   layers:
-     - myproject/Library.sysml
-     - myproject/Architecture.sysml
-     - myproject/Requirements.sysml
-     - myproject/Analysis.sysml
-   validation_layers:    # omit any negative-test layers
-     - myproject/Library.sysml
-     - myproject/Architecture.sysml
-     - myproject/Requirements.sysml
-     - myproject/Analysis.sysml
-   ```
-
-3. Run locally:
-   ```bash
-   bash setup.sh
-   python3 verify.py
-   ```
+**`--require-kernel` in CI**: Add this flag to any CI step that must hard-fail if the kernel
+is not registered. Exit code 2 distinguishes "kernel missing" from other errors.
 
 ---
 
-## Assumptions, Caveats & Future Developments
+## The BilgePump Reference Example
 
-### What works today
+`examples/bilgepump/` contains a complete 9-layer SysML v2 model of a maritime bilge pump
+system. It demonstrates every capability of this framework:
 
-| Capability | Status |
-|---|---|
-| 9-layer SysML v2 model | **Fully functional** — kernel-validated, 7/7 positive-test layers pass |
-| `verify.py` — kernel + fallback + fault trace + diagrams | **Fully functional** — primary verification entry point |
-| `Safety.ipynb` Python evaluations (STPA/FMEA/UQ) | **Fully functional** |
-| `sysml-project.yml` + `ci_kernel_validate.py` + CI workflows | **Fully functional** |
-| Copilot mapper agents (14 agents) | **Invocation-ready** via GitHub Copilot agent mode |
+- Full regulatory traceability (SOLAS, MARPOL, DNV, IEC 60945)
+- STPA safety analysis with UCA-derived requirements
+- FMEA with RPN thresholds and negative-test scenarios
+- Z3 formal analysis (6 levels)
+- Parametric UQ sweep
+- 7-state controller state machine
+- All 14 Copilot agents have been applied to produce this model
 
-### Known limitations
+To explore it interactively:
+```bash
+bash run.sh analysis    # Analysis.ipynb (SysML v2 kernel)
+bash run.sh safety      # Safety.ipynb (STPA/FMEA/UQ, Python kernel)
+```
 
-**1. RAAML `metadata def` syntax — Pilot API JAR version dependency**
+---
 
-`RAAML.sysml` uses `metadata def` and `#Annotation { }` blocks from the OMG RAAML v1.0 spec. This syntax requires the SysML v2 Pilot API JAR ≥ 2022-06. The SST public server version is not published. If the server rejects `RAAML.sysml` at commit time, apply the documented fallback: replace every `metadata def` with `attribute def` and remove all `#Annotation { }` blocks in `Safety.sysml` and `FMEA.sysml`. The requirement, constraint, and analysis logic remains valid without annotations.
+## Testing
 
-**2. Python `require constraint` evaluator is a supplement, not a replacement**
+```bash
+pytest tests/ -v            # all unit + model tests (~15 s, no kernel)
+pytest tests/unit/ -v       # unit tests only (~5 s)
+pytest tests/model/ -v      # model fallback tests (~10 s)
+pytest tests/ -m z3 -v      # Z3 tests (requires z3-solver)
+```
 
-`verify.py` uses the SysML v2 kernel as the primary evaluation engine. The Python regex/eval pass runs *after* the kernel as a structured extraction step (requirements → pass/fail → fault trace → JSON). The Python evaluator works reliably for arithmetic comparisons and boolean equality; it silently fails for chained attribute paths and unit-aware arithmetic. Use `--fallback` only when the kernel is unavailable.
-
-**3. Copilot agents are invocation patterns, not executable scripts**
-
-All files in `.github/agents/` are natural-language instruction sets for GitHub Copilot agent mode. They cannot be run directly. The full pipeline described in Step 3 requires a human to progress each phase or a Copilot session with tool access.
-
-**4. UQ methodology — deterministic sweep, not Monte Carlo**
-
-The N=10 sweep in `UQ.sysml` covers ±1σ and ±3σ individual deviations plus two combined worst-case points. A proper probabilistic UQ requires ≥10,000 samples, a correlation matrix, and Sobol sensitivity indices.
-
-**5. FMEA reliability numbers are illustrative**
-
-λ values, S/O/D ratings, and RPN thresholds reference real standards (IEC 61508-6, MIL-STD-1629A, Hydraulic Institute) but are not derived from field failure data.
-
-**6. TraceabilityAgent does not scan `metadata def` constructs**
-
-`lib/traceability.json` will not contain RAAML annotation elements. This is flagged in `Safety.ipynb` Cell 9 as a known gap.
-
-### Future developments roadmap
-
-| Priority | Development | Unlocks |
-|---|---|---|
-| High | Self-hosted SysML v2 API server (local JAR or Docker) | Persistent project storage, no SST dependency |
-| High | Extend TraceabilityAgent to scan `metadata def` | Full RAAML traceability gate |
-| Medium | STPA tool MCP (XSTAMPP API) | Live UCA extraction from STPA tool |
-| Medium | FMEA tool MCP (ReliaSoft XFMEA, Windchill) | Live failure mode sync |
-| Medium | Proper Monte Carlo UQ (OpenTURNS, SALib) | Statistically valid uncertainty quantification |
-| Low | Extend AllocationMapper + VerificationAgent for Safety/FMEA layers | Full 9-layer traceability |
+Single-file kernel check:
+```bash
+python scripts/sysml_check.py examples/bilgepump/Analysis.sysml --fallback  # ~1 s, no kernel
+python scripts/sysml_check.py examples/bilgepump/Requirements.sysml          # full kernel
+python scripts/sysml_check.py examples/bilgepump/FMEA.sysml --expect-violations
+```
 
 ---
 
 ## Project Structure
 
 ```
-sysml-project.yml           manifest: layer order, validation subset, project name
-verify.py                   PRIMARY: local SysML v2 verification engine
-setup.sh                    one-time: pip deps + SysML v2 kernel install
-commit.sh                   POST all layers to SST API (optional)
-run.sh                      open notebook interactively (analysis/safety)
-requirements.txt            Python deps: jupyter, matplotlib, networkx, requests
-requirements-ci.txt         CI-only Python deps: nbformat, nbclient
-CLAUDE.md                   SysML v2 kernel flat-package rules (AI assistant context)
+sysml-project.yml              manifest: layer order, validation subset
+verify.py                      PRIMARY: verification engine (kernel + fallback + fault trace)
+setup.sh                       one-time: kernel install + Python deps (REQUIRED first)
+commit.sh                      POST all layers to SST API (optional)
+run.sh                         open notebook interactively
+requirements.txt               Python deps
+requirements-ci.txt            CI-only Python deps
 
 scripts/
-  ci_kernel_validate.py     headless kernel validator (used in CI); --dry-run, --all-layers
-  fault_tracer.py           cross-layer fault localizer (used by verify.py)
-  diagram_gen.py            PNG diagram generator (used by verify.py --visual)
+  ci_kernel_validate.py        headless kernel validator (used in CI)
+  fault_tracer.py              cross-layer fault localizer (used by verify.py)
+  diagram_gen.py               PNG diagram generator (verify.py --visual)
+  sysml_check.py               single-file checker for local development
+  bootstrap_traceability.py    populate lib/traceability.json from ingested docs
+  sensor_adapter.py            live sensor ingestion adapter
 
 .github/
   workflows/
-    validate-pr.yml         PR gate: check-manifest + validate-sysml (kernel)
-    publish-to-api.yml      post-merge: publish to SST API (optional)
-  agents/                   14 Copilot mapper agents for model element mapping
+    validate-pr.yml            PR gate: unit-tests + check-manifest + validate-sysml
+    publish-to-api.yml         post-merge: publish to SST API
+  agents/                      14 reusable Copilot mapper agents
 
 lib/
-  build-state.json          Orchestrator phase state (phases 1–7)
-  commit-ids.json           project UUID + per-layer commit UUIDs (written by commit.sh)
-  traceability.json         element → source document map (written by TraceabilityAgent)
-  verification-results.json last verify.py run output
-  part-registry.json        part def names → file locations (written by PartDefMapper)
+  build-state.json             Orchestrator phase state
+  commit-ids.json              per-layer SST API commit UUIDs
+  traceability.json            element → source document map
+  verification-results.json    last verify.py run output
+  part-registry.json           part def names → file locations
 
-bilgepump/                  BilgePump reference project
-  RAAML.sysml               OMG RAAML v1.0 metadata def stereotypes
-  Library.sysml             part def, port def, attribute def (8 components)
-  Architecture.sysml        BilgePumpSystem: 8 part usages + 11 connect statements
-  Requirements.sysml        BPS-REQ-001 through BPS-REQ-004 + 5 UCA safety requirements
-  Analysis.sysml            PumpFlowPhysics + BilgePumpVerification (positive test)
-  Safety.sysml              STPA Losses, Hazards; 5 UCA requirement defs
-  FMEA.sysml                RPN/reliability/NPSH constraints; 4 negative-test analysis defs
-  UQ.sysml                  N=10 parametric uncertainty sweep analysis defs
-  StateMachine.sysml        7-state PumpControllerBehavior state machine
-  Analysis.ipynb            SysML v2 kernel: interactive model execution
-  Safety.ipynb              Python: STPA/FMEA/UQ evaluation pipeline
-  Results.ipynb             Python: result inspection
-  docs/
-    ingested/               Source documents for mapper agents (see Step 3)
-    system_topology.png     Generated by verify.py --visual
-    requirement_status.png  Generated by verify.py --visual
-    traceability.png        Generated by verify.py --visual
+examples/
+  bilgepump/                   Maritime bilge pump reference model
+    RAAML.sysml                OMG RAAML v1.0 metadata def stereotypes
+    Library.sysml              Part/port/attribute definitions
+    Architecture.sysml         System composition
+    Requirements.sysml         Requirement defs with constraints
+    Analysis.sysml             Constraint defs + verification analysis
+    Safety.sysml               STPA/UCA safety requirements
+    FMEA.sysml                 Failure mode analyses (negative tests)
+    UQ.sysml                   Parametric uncertainty sweep
+    StateMachine.sysml         Controller state machine
+    Analysis.ipynb             Interactive SysML v2 notebook
+    Safety.ipynb               STPA/FMEA/UQ Python notebook
+    Results.ipynb              Result inspection notebook
+    docs/ingested/             Pre-extracted source documents for agents
+
+tests/
+  unit/                        verify.py + helper unit tests
+  model/                       full-layer fallback evaluator tests
+  conftest.py                  shared pytest fixtures
 ```
+
+---
+
+## Caveats
+
+**1. `--fallback` is not verification**
+The Python regex/eval pass does not run the SysML v2 type checker.
+It works reliably for simple arithmetic comparisons but silently ignores complex
+attribute path chains and unit semantics. Use the kernel for authoritative results.
+
+**2. RAAML `metadata def` requires JAR ≥ 2022-06**
+If the SST public server rejects `RAAML.sysml`, replace `metadata def` with `attribute def`
+and remove `#Annotation { }` blocks. The requirement/constraint/analysis logic remains valid.
+
+**3. Copilot agents are instruction sets, not scripts**
+Files in `.github/agents/` are natural-language instructions for Copilot agent mode.
+They require a human to advance each phase or a Copilot session with tool access.
+
+**4. UQ is a deterministic sweep, not Monte Carlo**
+The N=10 sweep covers ±1σ and ±3σ deviations. A proper probabilistic UQ requires
+≥10,000 samples with a correlation matrix.

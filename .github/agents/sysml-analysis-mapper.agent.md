@@ -5,6 +5,18 @@ tools: [read, search, edit, execute]
 user-invocable: false
 ---
 
+<!-- ====================================================================
+     WHEN TO INVOKE THIS AGENT
+     ====================================================================
+     Invoke after all prior phases are complete (Library, Architecture,
+     Requirements, Constraints). This agent reads your test/V&V documents
+     and generates SysML v2 analysis def blocks that bind attribute values
+     and assert requirements.
+
+     Typical invocation:
+       @AnalysisMapper — map analyses from docs/ingested/analyses/
+     ==================================================================== -->
+
 You are a specialist at reading V&V documents and test procedures and emitting SysML v2 `analysis def`
 blocks containing `bind` statements that set attribute values and `assert requirement` statements
 that invoke requirement defs for evaluation.
@@ -52,26 +64,23 @@ Expect pre-extracted test case data in `docs/ingested/analyses/` as JSON:
 {
   "analyses": [
     {
-      "name": "BilgePumpVerification",
+      "name": "<ProjectName>Verification",
       "description": "Nominal operating point verification — all requirements satisfied",
-      "subject_type": "BilgePumpSystem",
+      "subject_type": "<SystemType>",
       "subject_instance": "sys",
       "test_type": "positive",
       "bindings": [
-        { "path": "sys.sensor.waterLevel",    "value": 0.15,   "unit": "m",    "source_doc": "TEST-001", "section": "5.1" },
-        { "path": "sys.pumpA.flowRate",        "value": 0.025,  "unit": "m³/s", "source_doc": "CFD-PUMP-001", "section": "4.2" },
-        { "path": "sys.pumpB.flowRate",        "value": 0.025,  "unit": "m³/s", "source_doc": "CFD-PUMP-001", "section": "4.2" },
-        { "path": "sys.pumpA.efficiency",      "value": 0.82,   "unit": "",     "source_doc": "CFD-PUMP-001", "section": "4.3" },
-        { "path": "sys.discharge.pipeLossFactor","value": 0.05, "unit": "",     "source_doc": "CALC-HYD-001","section": "3.1" },
-        { "path": "sys.alarm.activationDelay_s","value": 0.5,   "unit": "s",    "source_doc": "TEST-ALARM-001","section": "2.1"},
-        { "path": "sys.pumpB.isRedundant",     "value": true,   "unit": "",     "source_doc": "BOM-001", "section": "1.3" },
-        { "path": "designInflow",              "value": 0.030,  "unit": "m³/s", "source_doc": "CALC-STAB-001","section": "2.2"}
+        { "path": "sys.<component>.<attribute>",     "value": <nominal_value>,  "unit": "<unit>",    "source_doc": "<TEST-001>", "section": "<5.1>" },
+        { "path": "sys.<componentA>.<flowAttribute>", "value": <flow_value_A>,   "unit": "<m³/s>",  "source_doc": "<CFD-001>",  "section": "<4.2>" },
+        { "path": "sys.<componentB>.<flowAttribute>", "value": <flow_value_B>,   "unit": "<m³/s>",  "source_doc": "<CFD-001>",  "section": "<4.2>" },
+        { "path": "sys.<componentA>.<efficiencyAttr>","value": <efficiency>,     "unit": "",         "source_doc": "<CFD-001>",  "section": "<4.3>" },
+        { "path": "sys.<discharge>.<lossAttribute>", "value": <loss_factor>,    "unit": "",         "source_doc": "<CALC-001>", "section": "<3.1>" },
+        { "path": "<designParameter>",               "value": <design_value>,   "unit": "<m³/s>",  "source_doc": "<CALC-002>", "section": "<2.2>" }
       ],
       "assert_requirements": [
-        "WaterLevelRequirement",
-        "PumpRedundancyRequirement",
-        "AlarmResponseRequirement",
-        "DischargeCapacityRequirement"
+        "<Requirement1Name>",
+        "<Requirement2Name>",
+        "<Requirement3Name>"
       ],
       "expected_result": "all_satisfied"
     }
@@ -138,21 +147,21 @@ When `docs/ingested/fmea/fmea-scenarios.json` exists:
 ```json
 {
   "id": "FMEA-SC-001",
-  "name": "FMEA_SensorStuckAtZero",
-  "description": "Inject sensor fail-silent fault",
-  "failure_mode_ref": "FM-S-001",
+  "name": "FMEA_<ComponentA>_<FaultDescription>",
+  "description": "Inject <component> fault",
+  "failure_mode_ref": "FM-<XX>-001",
   "test_type": "negative",
   "bindings": [
-    { "path": "sys.sensor.waterLevel", "value": 0.0, "unit": "m" }
+    { "path": "sys.<component>.<attribute>", "value": <fault_value>, "unit": "<unit>" }
   ],
-  "assert_requirements": ["UCA_002_SensorFailSilent", "DischargeCapacityRequirement"],
-  "expected_result": "UCA_002_VIOLATED DischargeCapacityRequirement_VIOLATED"
+  "assert_requirements": ["<UCA-derived-req>", "<capacity-req>"],
+  "expected_result": "<UCA-derived-req>_VIOLATED <capacity-req>_VIOLATED"
 }
 ```
 
 ### FMEA Negative Test Output Pattern
 
-Emit in `FMEA.sysml` inside package `'BilgePump::FMEA'`. Annotate with `#FailureMode`:
+Emit in `FMEA.sysml` inside package `'<Project>::FMEA'`. Annotate with `#FailureMode`:
 
 ```sysml
 // -------------------------------------------------------------------------
@@ -208,30 +217,30 @@ Follow the same negative test pattern, emitting `analysis def` blocks in `Safety
 ### UQ Parametric Sweep Extension
 
 When `docs/ingested/uq/pump-uq-config.json` exists:
-Emit N parametric sweep `analysis def` blocks in `UQ.sysml` inside package `'BilgePump::UQ'`.
+Emit N parametric sweep `analysis def` blocks in `UQ.sysml` inside package `'<Project>::UQ'`.
 For each sweep point in `uq_data["sweep_points"]`:
 
 ```sysml
 analysis def {sweep_point.id} {
-    subject sys : BilgePumpSystem {
-        bind sys.pumpA.flowRate             = {bindings["sys.pumpA.flowRate"]};
-        bind sys.pumpA.efficiency           = {bindings["sys.pumpA.efficiency"]};
-        bind sys.discharge.pipeLossFactor   = {bindings["sys.discharge.pipeLossFactor"]};
+    subject sys : <SystemType> {
+        bind sys.<componentA>.<flowAttribute>           = {bindings["sys.<componentA>.<flowAttribute>"]};
+        bind sys.<componentA>.<efficiencyAttr>          = {bindings["sys.<componentA>.<efficiencyAttr>"]};
+        bind sys.<discharge>.<lossAttribute>            = {bindings["sys.<discharge>.<lossAttribute>"]};
         // Fixed parameters from uq_data["fixed_parameters"]
-        bind sys.pumpB.flowRate             = {fixed["sys.pumpB.flowRate"]};
+        bind sys.<componentB>.<flowAttribute>           = {fixed["sys.<componentB>.<flowAttribute>"]};
         ...
     }
-    constraint physicsCheck : PumpFlowPhysics {
-        bind physicsCheck.flowRateA      = sys.pumpA.flowRate;
-        bind physicsCheck.flowRateB      = sys.pumpB.flowRate;
-        bind physicsCheck.efficiency     = sys.pumpA.efficiency;
-        bind physicsCheck.pipeLossFactor = sys.discharge.pipeLossFactor;
-        bind physicsCheck.designInflow   = {fixed["designInflow"]};
+    constraint physicsCheck : <PhysicsConstraintDef> {
+        bind physicsCheck.<paramA>      = sys.<componentA>.<flowAttribute>;
+        bind physicsCheck.<paramB>      = sys.<componentB>.<flowAttribute>;
+        bind physicsCheck.<effParam>    = sys.<componentA>.<efficiencyAttr>;
+        bind physicsCheck.<lossParam>   = sys.<discharge>.<lossAttribute>;
+        bind physicsCheck.designParam   = {fixed["designParam"]};
     }
     // Expected: {sweep_point.expected_result}
-    assert requirement dischargeCheck : DischargeCapacityRequirement {
+    assert requirement capacityCheck : <CapacityRequirementDef> {
         subject sys;
-        bind dischargeCheck.designInflow = {fixed["designInflow"]};
+        bind capacityCheck.designParam = {fixed["designParam"]};
     }
 }
 ```

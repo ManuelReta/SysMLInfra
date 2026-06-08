@@ -5,6 +5,17 @@ tools: [read, search, edit, execute]
 user-invocable: false
 ---
 
+<!-- ====================================================================
+     WHEN TO INVOKE THIS AGENT
+     ====================================================================
+     Invoke during Phase 3.5 (parallel with RAAMLMapper) after Library
+     and Architecture layers are complete. Provide control model exports
+     or an operational-modes.json in docs/ingested/states/.
+
+     Typical invocation:
+       @StateMachineMapper — map states from docs/ingested/
+     ==================================================================== -->
+
 You are a specialist at reading discrete-event behavioral models and operational mode specifications
 and emitting SysML v2 `state def` and `transition` constructs.
 Your two output targets are `StateMachine.sysml` and `lib/state-space.json`.
@@ -77,8 +88,8 @@ Before writing StateMachine.sysml, run these checks and write results to
     "failoverTimeAttrPresent": true | false,
     "exhibitStatementsPresent": true | false,
     "timingRequirementsPresent": {
-      "BPS-REQ-005": true | false,
-      "BPS-REQ-006": true | false
+      "<PRJ-REQ-005>": true | false,
+      "<PRJ-REQ-006>": true | false
     },
     "mode": "greenfield | delta",
     "blockers": []
@@ -87,7 +98,7 @@ Before writing StateMachine.sysml, run these checks and write results to
 ```
 
 **Check 1 — StateMachine.sysml exists?**
-Search for `bilgepump/StateMachine.sysml`. If found, count existing `state def` and
+Search for the project's `StateMachine.sysml` path (from `sysml-project.yml`). If found, count existing `state def` and
 `transition` blocks. Set `"mode": "delta"` — append only states/transitions not yet present.
 
 **Check 2 — failoverTime_s in Library.sysml?**
@@ -99,15 +110,15 @@ Report this blocker to the Orchestrator and halt until resolved.
 Search `Architecture.sysml` for `exhibit state`. If absent, note for addition.
 
 **Check 4 — timing requirements in Requirements.sysml?**
-Search `Requirements.sysml` for `ControllerActivationTimingRequirement` and
-`FailoverSwitchTimingRequirement`. If absent, note that RequirementMapper should add them
-as part of the same Phase 3.5 run — flag but do not block.
+Search `Requirements.sysml` for the project's timing requirement names (e.g.,
+`ControllerActivation<X>Requirement`, `Failover<X>Requirement`).
+If absent, flag for RequirementMapper to add them as part of the same Phase 3.5 run — flag but do not block.
 
 ## Generic Input Contract
 
 This agent is designed for reuse across projects. It reads from two input sources:
 
-### Source A — Project-specific ingested documents (bilgepump)
+### Source A — Project-specific ingested documents
 ```
 docs/ingested/constraints/<tool>-controller-model.json  → timing bounds and scenarios
 docs/ingested/hazards/stpa-ucas.json                    → UCA guidewords → transition semantics
@@ -135,7 +146,7 @@ with the following schema. This schema is the generic portable interface:
       "description": "<short description>",
       "entry_condition": "<natural language>",
       "exit_conditions": ["<condition 1>", "<condition 2>"],
-      "linked_requirements": ["BPS-REQ-005"],
+      "linked_requirements": ["<PRJ-REQ-005>"],
       "linked_safety_requirements": ["SR-001"],
       "linked_failure_modes": [],
       "timing_constraints": []
@@ -205,7 +216,7 @@ the `#UCA` annotation blocks in Safety.sysml (do not write to Safety.sysml direc
 
 ## FMEA → State Mapping
 
-For each failure mode in `pump-fmea-table.json` or `fmea-scenarios.json`:
+For each failure mode in the project's `fmea-scenarios.json` or FMEA table:
 
 | failure_mode characteristic | Resulting state |
 |---|---|
@@ -250,7 +261,7 @@ package '{system}::StateMachine' {
         // {FROM_STATE} → {TO_STATE}
         // Trigger:  {trigger description}
         // Timing:   {timing description if applicable}
-        // transitionRef cross-reference: {uca_ids}
+        // UCA cross-reference: {uca_ids}
         transition {FROM_STATE}_to_{TO_STATE} {
             first {FROM_STATE};
             // guard: {guard_description}
@@ -288,7 +299,7 @@ Write the full state space responsibility file to `lib/state-space.json`:
       "name": "IDLE",
       "state_def": "PumpControllerBehavior",
       "level": "component",
-      "component": "<PumpController part def name>",
+      "component": "<ControllerPartDef>",
       "entry_condition": "<natural language>",
       "exit_conditions": ["<condition 1>"],
       "linked_requirements": [],
@@ -301,12 +312,12 @@ Write the full state space responsibility file to `lib/state-space.json`:
   "transitions": [
     {
       "id": "CTRL-T-001",
-      "name": "MONITORING_to_PUMP_A_ACTIVE",
-      "from_state": "MONITORING",
-      "to_state": "PUMP_A_ACTIVE",
-      "trigger_description": "waterLevel >= triggerLevel_m",
-      "timing_bound_s": 5.0,
-      "timing_param": "responseTime_s",
+      "name": "<FROM_STATE>_to_<TO_STATE>",
+      "from_state": "<FROM_STATE>",
+      "to_state": "<TO_STATE>",
+      "trigger_description": "<attribute> >= <threshold>",
+      "timing_bound_s": <timing_bound>,
+      "timing_param": "<responseAttribute_s>",
       "source_doc": "<doc_id>",
       "section": "<section>"
     }
@@ -315,26 +326,26 @@ Write the full state space responsibility file to `lib/state-space.json`:
     "uca_coverage": [
       {
         "uca_id": "UCA-001",
-        "control_action": "ActivatePumpA",
+        "control_action": "<ControlAction>",
         "guideword": "Not Provided",
-        "covered_by_transitions": ["MONITORING_to_PUMP_A_ACTIVE"],
-        "covered_by_states": ["PUMP_A_ACTIVE"]
+        "covered_by_transitions": ["<FROM_STATE>_to_<TO_STATE>"],
+        "covered_by_states": ["<TO_STATE>"]
       }
     ],
     "requirement_coverage": [
       {
-        "requirement_id": "BPS-REQ-005",
-        "requirement_name": "ControllerActivationTimingRequirement",
-        "covered_by_transitions": ["MONITORING_to_PUMP_A_ACTIVE"],
-        "covered_by_states": ["PUMP_A_ACTIVE"]
+        "requirement_id": "<PRJ-REQ-005>",
+        "requirement_name": "<TimingRequirementName>",
+        "covered_by_transitions": ["<FROM_STATE>_to_<TO_STATE>"],
+        "covered_by_states": ["<TO_STATE>"]
       }
     ],
     "fmea_coverage": [
       {
-        "fm_id": "FM-C-001",
-        "failure_mode": "Controller software hang",
+        "fm_id": "FM-<XX>-001",
+        "failure_mode": "<failure mode description>",
         "covered_by_state": "FAULT",
-        "covered_by_transitions": ["PUMP_A_ACTIVE_to_FAULT"]
+        "covered_by_transitions": ["<STATE>_to_FAULT"]
       }
     ]
   }
@@ -348,7 +359,7 @@ Write the full state space responsibility file to `lib/state-space.json`:
 3. Read all input sources:
    - `docs/ingested/constraints/*.json` (Simulink/control model exports)
    - `docs/ingested/hazards/stpa-ucas.json`
-   - `docs/ingested/fmea/fmea-scenarios.json` or `pump-fmea-table.json`
+   - `docs/ingested/fmea/fmea-scenarios.json` or the project's FMEA table
    - `docs/ingested/states/operational-modes.json` if present (generic schema — takes precedence)
 4. Extract states from:
    - Simulink scenario enumeration (nominal + fault scenarios → operational states)
@@ -370,10 +381,10 @@ Write the full state space responsibility file to `lib/state-space.json`:
 10. Write transition cross-reference notes to `lib/traceability.json` under `"stateMachine"`:
     ```json
     "stateMachine": {
-      "stateDefs": ["PumpControllerBehavior", "BilgePumpSystemBehavior"],
-      "transitions": ["MONITORING_to_PUMP_A_ACTIVE", "..."],
-      "transitionRefs": { "UCA-001": "MONITORING_to_PUMP_A_ACTIVE", "..." },
-      "stateRefs":      { "FM-C-001": "FAULT", "FM-C-003": "FAILOVER" }
+      "stateDefs": ["<ComponentBehavior>", "<SystemBehavior>"],
+      "transitions": ["<FROM_STATE>_to_<TO_STATE>", "..."],
+      "transitionRefs": { "UCA-001": "<FROM_STATE>_to_<TO_STATE>", "..." },
+      "stateRefs":      { "FM-<XX>-001": "FAULT", "FM-<YY>-001": "FAILOVER" }
     }
     ```
 

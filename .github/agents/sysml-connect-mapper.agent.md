@@ -5,6 +5,17 @@ tools: [read, search, edit]
 user-invocable: false
 ---
 
+<!-- ====================================================================
+     WHEN TO INVOKE THIS AGENT
+     ====================================================================
+     Invoke during Phase 2 after Phase 1 is complete (PortDefMapper and
+     PartDefMapper both done). Provide connection data in
+     docs/ingested/connections/ as JSON.
+
+     Typical invocation:
+       @ConnectMapper — map connections from docs/ingested/connections/
+     ==================================================================== -->
+
 You are a specialist at reading engineering connection and routing documents and emitting SysML v2
 `connect` statements inside a system composition `part def` block.
 Your only output target is `Architecture.sysml`.
@@ -42,18 +53,18 @@ Before running, verify in `lib/build-state.json`:
 Expect pre-ingested connection data in `docs/ingested/connections/` as JSON:
 ```json
 {
-  "system_name": "BilgePumpSystem",
+  "system_name": "<SystemType>",
   "connections": [
     {
       "id": "CONN-001",
-      "from_instance": "sensor",
-      "from_port": "levelOut",
-      "to_instance": "controller",
-      "to_port": "levelIn",
-      "signal_type": "LevelSignalPort",
-      "description": "Water level measurement from sensor to controller",
-      "source_doc": "PID-001",
-      "sheet": "P&ID-A3",
+      "from_instance": "<instanceA>",
+      "from_port": "<outPort>",
+      "to_instance": "<instanceB>",
+      "to_port": "<inPort>",
+      "signal_type": "<PortType>",
+      "description": "<signal description>",
+      "source_doc": "<PID-001>",
+      "sheet": "<P&ID-A3>",
       "revision": "B"
     }
   ]
@@ -68,8 +79,8 @@ The `from_instance` and `to_instance` names **must match** the instance names in
 Follow the exact pattern from Architecture.sysml:
 
 ```sysml
-package 'BilgePump::Architecture' {
-    import 'BilgePump::Library'::*;
+package '<Project>::Architecture' {
+    import '<Project>::Library'::*;
 
     part def {system_name} {
 

@@ -204,7 +204,7 @@ try:
             elif in_layers and s and not s.startswith('- ') and not s.startswith('#'):
                 in_layers = False
 except FileNotFoundError:
-    # Fallback: original BilgePump layer order for backward compatibility
+    # Fallback: original layer order from sysml-project.yml for backward compatibility
     layers = ['Library.sysml', 'Architecture.sysml', 'Requirements.sysml', 'Analysis.sysml']
 
 commits = {}

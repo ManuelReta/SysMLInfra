@@ -54,7 +54,7 @@ def build_bind_index(layer_paths: list[str], repo_root: str, negative: bool = Fa
         {
           "full.path.attr": {
               "value": <float|bool|str>,
-              "file":  "bilgepump/Analysis.sysml",
+              "file":  "examples/<project>/Analysis.sysml",
               "line":  42,
           },
           ...
@@ -112,7 +112,7 @@ def build_uca_index(safety_path: str, repo_root: str) -> dict:
               "hazardRefs":      "H-1,HS-1",
               "failureModeLink": "FM-C-001",
               "transitionRef":   "MONITORING_to_PUMP_A_ACTIVE",
-              "file":            "bilgepump/Safety.sysml",
+              "file":            "examples/<project>/Safety.sysml",
               "line":            118,
           },
           ...
@@ -151,7 +151,7 @@ def build_fmea_index(fmea_path: str, repo_root: str) -> dict:
         {
           "FM-PA-002": {
               "fmId":            "FM-PA-002",
-              "component":       "BilgePumpA",
+              "component":       "<ComponentPartDef>",
               "instance":        "pumpA",
               "failureModeText": "...",
               "failureEffect":   "...",
@@ -162,7 +162,7 @@ def build_fmea_index(fmea_path: str, repo_root: str) -> dict:
               "ucaRef":          "",
               "hazardRef":       "H-1",
               "stateRef":        "PUMP_A_ACTIVE",
-              "file":            "bilgepump/FMEA.sysml",
+              "file":            "examples/<project>/FMEA.sysml",
               "line":            195,
           },
           ...
@@ -212,7 +212,7 @@ def build_requirement_index(req_paths: list[str], repo_root: str) -> dict:
         {
           "WaterLevelRequirement": {
               "expr":    "sys.sensor.waterLevel <= 0.3",
-              "file":    "bilgepump/Requirements.sysml",
+              "file":    "examples/<project>/Requirements.sysml",
               "line":    45,
               "reg_ids": ["BPS-REQ-001"],
           },
