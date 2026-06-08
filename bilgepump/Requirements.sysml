@@ -214,4 +214,193 @@ package 'BilgePump::Requirements' {
         }
     }
 //
+    // =========================================================================
+    // Fault-Tolerance Requirements (FT-*)
+    //
+    // These requirements decompose the abstract safety property:
+    //   "The bilge pump system shall remain safe under all conditions within
+    //    its defined operating envelope."
+    //
+    // Motivation: the original 6 requirements (REQ-001..006) each check a
+    // single attribute at a single point in time.  They CANNOT detect:
+    //   - sensor accuracy consuming the margin between trigger and MARPOL limit
+    //   - the efficiency + pipe-loss product undermining REQ-004's simple sum
+    //   - the timing chain (response + alarm) vs the physical overflow window
+    //   - adversarial parameter combinations where all 6 pass yet system fails
+    //
+    // All FT-* requirements are also checked by the Z3 formal analyser
+    // (bilgepump/formal_analysis.py), which discovers the parametric envelopes
+    // and counterexamples the SysML point-in-time engine cannot find.
+    // =========================================================================
+
+    // =========================================================================
+    // FT-001: Sensor Accuracy Bound
+    //
+    // Gap closed: BPS-REQ-001 checks sys.sensor.waterLevel ≤ 0.3.
+    // But waterLevel is the REPORTED value; the true level can be up to
+    // (waterLevel + accuracy_m) if the sensor under-reads.  This requirement
+    // closes the gap by adding the accuracy margin into the bound.
+    //
+    // Regulatory basis: sensor calibration certificate + IMO MARPOL 73/78 —
+    //   the 300 mm limit applies to the ACTUAL level, not the instrument reading.
+    //
+    // DOORS / Jama traceability ID: BPS-FT-001
+    // =========================================================================
+    requirement def SensorAccuracyBoundRequirement {
+        subject sys : BilgePumpSystem;
+
+        doc /* The reported water level plus the sensor accuracy margin shall
+               not exceed 300 mm.  This ensures the actual bilge level remains
+               within the MARPOL limit even under worst-case sensor under-reading. */
+
+        require constraint {
+            sys.sensor.waterLevel + sys.sensor.accuracy_m <= 0.3
+        }
+    }
+
+    // =========================================================================
+    // FT-002: Effective Discharge Capacity
+    //
+    // Gap closed: BPS-REQ-004 checks (flowA + flowB) ≥ designInflow, but the
+    // PumpFlowPhysics constraint shows the net flow is actually:
+    //   Q_net = (flowA × η_A + flowB × η_B) × (1 − λ)
+    // A pump pair that satisfies REQ-004 may still fail to overcome inflow
+    // if efficiency is low and pipe losses are high.
+    //
+    // Regulatory basis: SOLAS II-1 Reg. 35 — required flow must be achievable
+    //   after accounting for all hydraulic losses.
+    //
+    // Modelling note: η_A and η_B are per-pump efficiencies, which may differ
+    //   (e.g., after wear).  designInflow is the same damage-stability value
+    //   used by REQ-004.
+    //
+    // DOORS / Jama traceability ID: BPS-FT-002
+    // =========================================================================
+    requirement def EffectiveDischargeCapacityRequirement {
+        subject sys : BilgePumpSystem;
+
+        // Design inflow rate from damage stability analysis (m³/s).
+        // Same source as REQ-004: naval architecture tool (Maxsurf / NAPA).
+        attribute designInflow : Real;
+
+        doc /* The net discharge flow, after accounting for per-pump hydraulic
+               efficiency and pipe friction losses, shall meet or exceed the
+               design inflow rate.  This is more conservative than BPS-REQ-004,
+               which only checks the raw sum of pump flow rates. */
+
+        require constraint {
+            (sys.pumpA.flowRate * sys.pumpA.efficiency
+             + sys.pumpB.flowRate * sys.pumpB.efficiency)
+            * (1.0 - sys.discharge.pipeLossFactor) >= designInflow
+        }
+    }
+
+    // =========================================================================
+    // FT-003: Trigger Level Accuracy
+    //
+    // Gap closed: BPS-REQ-001 and BPS-REQ-005 both ignore sensor accuracy.
+    // If the controller uses triggerLevel_m to decide when to start the pump,
+    // and the sensor can under-read by accuracy_m, then the pump may not start
+    // until the true level is (triggerLevel_m + accuracy_m) — which must still
+    // be below the 300 mm MARPOL limit.
+    //
+    // Concrete scenario: triggerLevel_m=0.25, accuracy_m=0.05 → trigger
+    // fires at apparent 0.25, but true level could be 0.30 (at the limit).
+    //
+    // DOORS / Jama traceability ID: BPS-FT-003
+    // =========================================================================
+    requirement def TriggerLevelAccuracyRequirement {
+        subject sys : BilgePumpSystem;
+
+        doc /* The controller trigger threshold plus the sensor accuracy margin
+               shall not exceed 300 mm.  This ensures pump activation occurs
+               before the actual water level reaches the MARPOL limit, even
+               under worst-case sensor under-reading. */
+
+        require constraint {
+            sys.controller.triggerLevel_m + sys.sensor.accuracy_m <= 0.3
+        }
+    }
+
+    // =========================================================================
+    // FT-004: End-to-End Response Time vs Overflow Window
+    //
+    // Gap closed: BPS-REQ-005 checks responseTime_s ≤ 5.0 s and BPS-REQ-003
+    // checks alarmDelay_s ≤ 2.0 s.  Neither requirement verifies whether the
+    // COMBINED timing chain (controller response + alarm activation) is short
+    // enough relative to the physical overflow window — defined as the time
+    // from water level at sensor threshold to SOLAS critical level, at the
+    // current inflow rate.
+    //
+    // Formulation (division-free, equivalent form):
+    //   (responseTime_s + activationDelay_s) × inflowRate_m3s
+    //     ≤ criticalLevel_m − sensor.waterLevel
+    //
+    // Interpretation: the volume added to the bilge during the total response
+    //   delay must not exceed the remaining safe headroom.
+    //
+    // NOTE: inflowRate_m3s and criticalLevel_m are system-level attributes
+    //   added to BilgePumpSystem (Architecture.sysml) for this requirement.
+    //
+    // DOORS / Jama traceability ID: BPS-FT-004
+    // =========================================================================
+    requirement def EndToEndResponseRequirement {
+        subject sys : BilgePumpSystem;
+
+        doc /* The product of the total system response time (controller
+               activation delay plus alarm activation delay) and the water
+               inflow rate shall not exceed the remaining safe headroom
+               (critical level minus current water level).  This ensures
+               the timing chain is feasible for the physical flooding scenario. */
+
+        require constraint {
+            (sys.controller.responseTime_s + sys.alarm.activationDelay_s)
+            * sys.inflowRate_m3s
+            <= sys.criticalLevel_m - sys.sensor.waterLevel
+        }
+    }
+
+    // =========================================================================
+    // OOR-001: Override Ordering Requirement
+    //
+    // Gap closed: StateMachine.sysml has no guard preventing operator override
+    // before the alarm notification arrives at the UI (alarm.notifyOut →
+    // ui.notifyIn, connection [11]).  Z3 Level 6 (formal_analysis.py) found a
+    // satisfiable trace where t_operator_override < t_alarm_notify_ui, meaning
+    // a crew member could act on an override before seeing the alarm.
+    //
+    // This requirement closes that gap with a static snapshot constraint:
+    //   "if override is active, the alarm must already be active"
+    // This is a conservative instantaneous approximation.  Full temporal proof
+    // (for all traces, not just a single snapshot) requires Z3 Level 6 or a
+    // model checker such as nuXmv / PRISM fed the StateMachine.sysml states.
+    //
+    // Regulatory basis:
+    //   IMO MSC/Circ.982 (Alarm Management Guidelines):
+    //     "Operator action must only be available after alarm acknowledgement."
+    //   DNV Rules Pt.4 Ch.9 (Alarm Systems): alarm acknowledgement prerequisite
+    //     before operator can suppress or override alarm-triggered actuation.
+    //
+    // State machine fix required: add a guard to controller.overrideIn port
+    // that rejects commands unless sys.alarm.isActive == true.
+    //
+    // DOORS / Jama traceability ID: BPS-OOR-001
+    // =========================================================================
+    requirement def OverrideOrderingRequirement {
+        subject sys : BilgePumpSystem;
+
+        doc /* If the operator override is active, the alarm system must already
+               be active.  This ensures crew acts only after receiving the alarm
+               notification, preventing premature override before hazard awareness.
+               Derived from STPA Level-6 temporal ordering gap (Z3 formal_analysis). */
+
+        require constraint {
+            // "override active" implies "alarm active"
+            // Instantaneous approximation of the temporal ordering property:
+            //   t_operator_override ≥ t_alarm_notify_ui
+            sys.ui.overrideActive == false or sys.alarm.isActive == true
+        }
+    }
+
 }
+

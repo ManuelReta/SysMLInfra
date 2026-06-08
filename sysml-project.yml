@@ -22,7 +22,7 @@
 name: BilgePumpSystem
 description: "SysML v2 bilge pump verification — IMO MARPOL, DNV, IEC 60945, SOLAS"
 
-# All 8 layers — full model including safety, FMEA, and UQ extensions.
+# All 9 layers — full model including safety, FMEA, UQ, and state machine extensions.
 layers:
   - bilgepump/RAAML.sysml
   - bilgepump/Library.sysml
@@ -32,12 +32,14 @@ layers:
   - bilgepump/Safety.sysml
   - bilgepump/FMEA.sysml
   - bilgepump/UQ.sysml
+  - bilgepump/StateMachine.sysml
 
 # Positive-test subset for kernel CI execution.
 # FMEA.sysml: contains 4 negative-test analysis defs — designed to produce
 #             VIOLATED assertions (FM-S-001, FM-PA-002, FM-PB-001, FM-C-001).
 # UQ.sysml:   UQ_Sweep_10 (combined 3σ extreme) produces a VIOLATED assertion
 #             by design. Both files are syntax-validated via --dry-run.
+# StateMachine.sysml: no VIOLATED assertions; included in validation.
 validation_layers:
   - bilgepump/RAAML.sysml
   - bilgepump/Library.sysml
@@ -45,3 +47,17 @@ validation_layers:
   - bilgepump/Requirements.sysml
   - bilgepump/Analysis.sysml
   - bilgepump/Safety.sysml
+  - bilgepump/StateMachine.sysml
+
+# Z3 formal analysis layer (not executed by the SysML kernel — Python only).
+# Run with: python verify.py --z3
+# Or standalone: python bilgepump/formal_analysis.py
+# Six levels of increasing complexity:
+#   L1  Symbolic baseline (LRA) — REQ-001 proof by refutation
+#   L2  Efficiency floor (NRA)  — discover REQ-004 vs FT-002 gap
+#   L3  Accuracy envelope (LRA) — find MARPOL boundary for FT-001/FT-003
+#   L4  Response window (LRA)   — critical inflow for FT-004 timing chain
+#   L5  Adversarial (NRA)       — REQ-001..006 pass, FT-002 still violated
+#   L6  Bounded temporal (LIA)  — override ordering in state machine (depth≤8)
+z3_layers:
+  - bilgepump/formal_analysis.py

@@ -1,5 +1,17 @@
 #!/usr/bin/env bash
 # =============================================================================
+# DEPRECATED — use verify.py instead:
+#
+#   python3 verify.py              # positive test (all requirements)
+#   python3 verify.py --negative   # pump A failure + fault trace
+#   python3 verify.py --visual     # + generate diagrams
+#
+# This script is kept for reference only. It requires lib/commit-ids.json
+# (written by commit.sh) and only evaluates BPS-REQ-001 through BPS-REQ-004.
+# verify.py evaluates all 11 requirements, runs the SysML kernel, and traces
+# faults to UCA and FMEA failure modes.
+# =============================================================================
+# =============================================================================
 # verify.sh — Verify the base 4-layer model requirements against the
 #             committed SysML v2 API project.
 #

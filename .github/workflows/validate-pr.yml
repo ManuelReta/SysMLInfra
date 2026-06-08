@@ -30,8 +30,34 @@ on:
       - "**.sysml"
       - "sysml-project.yml"
       - "scripts/**"
+      - "tests/**"
+      - "requirements-ci.txt"
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # Job 0: unit-tests — fast Python unit tests, no kernel or JVM required.
+  #
+  # Runs in ~15 seconds.  Tests verify.py helpers, fault_tracer, formal_analysis
+  # and the Python fallback evaluator against the bilge pump model.
+  # ---------------------------------------------------------------------------
+  unit-tests:
+    name: unit-tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install test dependencies
+        run: pip install pytest pytest-cov
+
+      - name: Run unit tests
+        run: pytest tests/ -x --tb=short -q
+
   # ---------------------------------------------------------------------------
   # Job 1: check-manifest — fast structural check, stdlib Python only.
   #
@@ -47,9 +73,10 @@ jobs:
   check-manifest:
     name: check-manifest
     runs-on: ubuntu-latest
+    needs: unit-tests
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Verify manifest and layer files (dry run)
         run: python3 scripts/ci_kernel_validate.py --dry-run
@@ -71,7 +98,7 @@ jobs:
       # 1. Check out the PR branch
       # -----------------------------------------------------------------------
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       # -----------------------------------------------------------------------
       # 2. Java 21 — required by the SysML v2 kernel JAR (same requirement

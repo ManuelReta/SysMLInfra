@@ -1,0 +1,138 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "SysML: Check current file (fallback)",
+            "type": "shell",
+            "command": "python scripts/sysml_check.py ${relativeFile} --fallback",
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            },
+            "problemMatcher": [],
+            "detail": "Quick Python regex/eval check of the active .sysml file (~1 s)"
+        },
+        {
+            "label": "SysML: Check current file (kernel)",
+            "type": "shell",
+            "command": "python scripts/sysml_check.py ${relativeFile}",
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            },
+            "problemMatcher": [],
+            "detail": "Full SysML v2 kernel check of the active .sysml file (~15 s)"
+        },
+        {
+            "label": "SysML: Check FMEA (expect violations)",
+            "type": "shell",
+            "command": "python scripts/sysml_check.py bilgepump/FMEA.sysml --expect-violations",
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            },
+            "problemMatcher": [],
+            "detail": "Negative-test check: PASS when FMEA violations are present as expected"
+        },
+        {
+            "label": "Verify: Run fallback (positive test)",
+            "type": "shell",
+            "command": "python verify.py --fallback",
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            },
+            "problemMatcher": [],
+            "detail": "Run the full V&V suite using the Python fallback evaluator (~2 s)"
+        },
+        {
+            "label": "Verify: Run with kernel",
+            "type": "shell",
+            "command": "python verify.py",
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            },
+            "problemMatcher": [],
+            "detail": "Run the full V&V suite using the SysML v2 kernel (~25 s)"
+        },
+        {
+            "label": "Verify: Negative test (pump A failure)",
+            "type": "shell",
+            "command": "python verify.py --fallback --negative",
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            },
+            "problemMatcher": [],
+            "detail": "Inject pumpA.flowRate=0 and confirm discharge requirements are violated"
+        },
+        {
+            "label": "Verify: Z3 formal analysis",
+            "type": "shell",
+            "command": "python verify.py --fallback --z3",
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            },
+            "problemMatcher": [],
+            "detail": "Run Python fallback + Z3 SMT analysis (requires z3-solver)"
+        },
+        {
+            "label": "Tests: Run all unit + model tests",
+            "type": "shell",
+            "command": "pytest tests/ -v",
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            },
+            "problemMatcher": [],
+            "detail": "Run the full pytest suite, no kernel required (~15 s)"
+        },
+        {
+            "label": "Tests: Run unit tests only",
+            "type": "shell",
+            "command": "pytest tests/unit/ -v",
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            },
+            "problemMatcher": [],
+            "detail": "Run unit tests only (~5 s)"
+        },
+        {
+            "label": "Bootstrap: Populate traceability",
+            "type": "shell",
+            "command": "python scripts/bootstrap_traceability.py",
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            },
+            "problemMatcher": [],
+            "detail": "Parse docs/ingested/ and populate lib/traceability.json"
+        }
+    ]
+}

@@ -31,6 +31,23 @@ package 'BilgePump::Architecture' {
     part def BilgePumpSystem {
 
         // ---------------------------------------------------------------------
+        // System-level operational parameters — fault-tolerance analysis (FT-*)
+        // These are not component attributes; they describe the operational
+        // envelope of the entire system in the damage stability scenario.
+        //
+        // SOURCE (inflowRate_m3s): Naval architecture stability analysis tool
+        //   (Maxsurf / NAPA) — worst-case water ingress rate for the design flood
+        //   scenario.  Nominal design storm: 0.020 m³/s.
+        //   Catastrophic breach scenario (SOLAS damage case): up to 0.233 m³/s.
+        //
+        // SOURCE (criticalLevel_m): SOLAS Chapter II-1 structural margin.
+        //   Water level above which freeboard is compromised.
+        //   Conservative bound: 0.5 m above bilge floor.
+        // ---------------------------------------------------------------------
+        attribute inflowRate_m3s  : Real;   // Design water ingress rate (m³/s)
+        attribute criticalLevel_m : Real;   // Max tolerable level before SOLAS breach (m)
+
+        // ---------------------------------------------------------------------
         // Part Usages
         // Each entry instantiates a Library part def as a named role within
         // the system boundary.

@@ -38,12 +38,10 @@ fi
 echo "Checking SysML v2 API server at ${API_URL}..."
 
 if curl -sf --max-time 8 "${API_URL}/projects" -o /dev/null; then
-    echo "  Server ready."
+    echo "  Server reachable (optional — not required for local verification)."
 else
-    echo ""
-    echo "ERROR: Cannot reach ${API_URL}/projects"
-    echo "       Check your internet connection or firewall."
-    exit 1
+    echo "  Note: SST API not reachable — notebooks that commit to the API will skip that step."
+    echo "  Local verification (python3 verify.py) works without internet."
 fi
 
 echo ""

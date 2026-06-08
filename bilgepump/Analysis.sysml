@@ -333,4 +333,143 @@ package 'BilgePump::Analysis' {
         assert requirement alarmTimingCheck : AlarmResponseRequirement { subject sys; }
     }
 //
+    // =========================================================================
+    // BilgePumpFaultToleranceVerification  — fault-tolerance analysis case
+    //
+    // Verifies the FT-* requirements (BPS-FT-001..004) that decompose the
+    // abstract safety property:
+    //   "The system shall remain safe under all conditions within its
+    //    operating envelope."
+    //
+    // These requirements are more complex than REQ-001..006:
+    //   FT-001 / FT-003: multi-attribute (sensor + accuracy)
+    //   FT-002: product chain (flowRate × efficiency × (1 − loss))
+    //   FT-004: cross-component conjunction (4 attributes from 4 parts)
+    //
+    // Test scenario: nominal values with realistic sensor accuracy (±3 cm)
+    // and design-storm inflow from NAPA damage stability export (0.020 m³/s).
+    //
+    // Positive test — all FT-* requirements should be SATISFIED at these values.
+    // The margin for FT-003 is intentionally narrow (0.28 m vs 0.30 m limit)
+    // to demonstrate that the Z3 analyser (formal_analysis.py, Level 3) will
+    // find the envelope boundary at accuracy_m = 0.05.
+    //
+    // Linked analyser: bilgepump/formal_analysis.py (Levels 1–6)
+    // =========================================================================
+    analysis def BilgePumpFaultToleranceVerification {
+
+        subject sys : BilgePumpSystem {
+
+            // --- BilgeWaterSensor ---
+            // Nominal water level (calm-water operation; below trigger threshold)
+            bind sys.sensor.waterLevel          = 0.15;
+            // Sensor accuracy class: ±3 cm (typical ultrasonic / pressure sensor)
+            // SOURCE: sensor calibration certificate (accuracy class IEC 60770-1)
+            // NOTE: accuracy_m=0.03 means FT-001 evaluates 0.15+0.03=0.18 ≤ 0.30 ✓
+            //       FT-003 evaluates 0.25+0.03=0.28 ≤ 0.30 ✓  (narrow margin)
+            bind sys.sensor.accuracy_m          = 0.03;
+
+            // --- PumpController ---
+            bind sys.controller.triggerLevel_m  = 0.25;
+            bind sys.controller.responseTime_s  = 1.0;
+            bind sys.controller.failoverTime_s  = 0.8;
+
+            // --- PowerSupply ---
+            bind sys.power.nominalVoltage       = 440.0;
+            bind sys.power.redundancyActive     = false;
+
+            // --- BilgePumpA (primary) ---
+            bind sys.pumpA.flowRate             = 0.025;
+            bind sys.pumpA.efficiency           = 0.82;
+            bind sys.pumpA.runHours             = 120.0;
+
+            // --- BilgePumpB (redundant) ---
+            bind sys.pumpB.flowRate             = 0.025;
+            bind sys.pumpB.efficiency           = 0.82;
+            bind sys.pumpB.runHours             = 85.0;
+            bind sys.pumpB.isRedundant          = true;
+
+            // --- DischargeLine ---
+            bind sys.discharge.pipeLossFactor   = 0.05;
+
+            // --- AlarmSystem ---
+            bind sys.alarm.activationDelay_s    = 0.5;
+            bind sys.alarm.isActive             = false;
+
+            // --- OperatorInterface ---
+            bind sys.ui.overrideActive          = false;
+
+            // --- System-level operational parameters (new in Architecture.sysml) ---
+            // Design storm inflow from NAPA stability export (m³/s)
+            // Overflow window at nominal values: (0.5 - 0.15) / 0.020 = 17.5 s
+            // Timing chain: 1.0 + 0.5 = 1.5 s  →  FT-004: 1.5 × 0.020 = 0.030 ≤ 0.350 ✓
+            bind sys.inflowRate_m3s             = 0.020;
+            // Max tolerable level from SOLAS II-1 structural margin
+            bind sys.criticalLevel_m            = 0.5;
+        }
+
+        // TEST FT-001: Reported + accuracy margin stays within MARPOL limit
+        assert requirement sensorAccuracyCheck : SensorAccuracyBoundRequirement { subject sys; }
+
+        // TEST FT-002: Net effective discharge (with efficiency + pipe loss) ≥ design inflow
+        assert requirement effectiveDischargeCheck : EffectiveDischargeCapacityRequirement {
+            subject sys;
+            bind effectiveDischargeCheck.designInflow = 0.030;
+        }
+
+        // TEST FT-003: Trigger level + accuracy margin stays within MARPOL limit
+        assert requirement triggerAccuracyCheck : TriggerLevelAccuracyRequirement { subject sys; }
+
+        // TEST FT-004: Timing chain (response + alarm) feasible vs physical overflow window
+        assert requirement responseWindowCheck : EndToEndResponseRequirement { subject sys; }
+
+        // TEST OOR-001: Override only after alarm active (Z3 Level 6 gap closure)
+        assert requirement overrideOrderingCheck : OverrideOrderingRequirement { subject sys; }
+    }
+//
+    // =========================================================================
+    // V-MODEL TRACEABILITY LINKS — Phase 4
+    //
+    // SysML v2 §7.16: satisfy and verify relationships complete the V-model.
+    //
+    //   satisfy <RequirementDef> by <DesignElementType>;
+    //     → Left side of V: design element fulfils the requirement
+    //     → Placed here (Analysis) because Architecture cannot import Requirements
+    //       without creating a circular dependency (Requirements imports Architecture).
+    //
+    //   verify <RequirementDef> by <AnalysisDef>;
+    //     → Right side of V: analysis case provides evidence of conformance.
+    //     → Complements 'assert requirement' in each analysis def above.
+    //
+    // Compatibility note: Pilot API JAR >= 2022-09 resolves satisfy/verify
+    // links as formal traceability; earlier JARs treat them as documentation.
+    // =========================================================================
+
+    // ── Satisfy links: design element type → requirement ─────────────────────
+    satisfy WaterLevelRequirement                   by BilgeWaterSensor;
+    satisfy PumpRedundancyRequirement               by BilgePumpB;
+    satisfy AlarmResponseRequirement                by AlarmSystem;
+    satisfy DischargeCapacityRequirement            by BilgePumpA, BilgePumpB, DischargeLine;
+    satisfy EffectiveDischargeCapacityRequirement   by BilgePumpA, BilgePumpB, DischargeLine;
+    satisfy ControllerActivationTimingRequirement   by PumpController;
+    satisfy FailoverSwitchTimingRequirement         by PumpController;
+    satisfy SensorAccuracyBoundRequirement          by BilgeWaterSensor;
+    satisfy TriggerLevelAccuracyRequirement         by BilgeWaterSensor, PumpController;
+    satisfy EndToEndResponseRequirement             by PumpController, AlarmSystem;
+    satisfy OverrideOrderingRequirement             by PumpController, AlarmSystem, OperatorInterface;
+
+    // ── Verify links: analysis def → requirement ──────────────────────────────
+    verify WaterLevelRequirement                    by BilgePumpVerification;
+    verify PumpRedundancyRequirement                by BilgePumpVerification;
+    verify AlarmResponseRequirement                 by BilgePumpVerification, BilgePumpTimingVerification;
+    verify DischargeCapacityRequirement             by BilgePumpVerification;
+    verify EffectiveDischargeCapacityRequirement    by BilgePumpFaultToleranceVerification;
+    verify ControllerActivationTimingRequirement    by BilgePumpTimingVerification;
+    verify FailoverSwitchTimingRequirement          by BilgePumpTimingVerification;
+    verify SensorAccuracyBoundRequirement           by BilgePumpFaultToleranceVerification;
+    verify TriggerLevelAccuracyRequirement          by BilgePumpFaultToleranceVerification;
+    verify EndToEndResponseRequirement              by BilgePumpFaultToleranceVerification;
+    verify OverrideOrderingRequirement              by BilgePumpTimingVerification;
+//
 }
+
