@@ -54,7 +54,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install Python dependencies
-        run: pip install requests
+        run: pip install requests pyyaml
 
       # -----------------------------------------------------------------------
       # 3. Publish: run commit.sh which reads sysml-project.yml for the layer
@@ -71,14 +71,13 @@ jobs:
 
       # -----------------------------------------------------------------------
       # 4. Verify persistence: confirm the API actually stored all commits.
-      #    Runs verify.sh Step 1 (API check) + Step 2 (constraint evaluation).
-      #    Step 2 is API-free and re-runs the constraint checks as a sanity
-      #    gate even after publication.
+      #    Uses verify.py --fallback which re-runs constraint checks as a
+      #    sanity gate after publication (API-free, Python-only).
       # -----------------------------------------------------------------------
       - name: Verify API persistence and constraints
         env:
           API_BASE: ${{ secrets.SYSML_API_BASE }}
-        run: bash verify.sh
+        run: python verify.py --fallback
 
       # -----------------------------------------------------------------------
       # 5. Upload the publish state as a downloadable artifact.
