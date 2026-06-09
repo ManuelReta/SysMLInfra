@@ -4,12 +4,12 @@ import json
 import requests
 from pathlib import Path
 
-
 def get_host() -> str:
     return "http://localhost:9000"
 
 API_BASE = get_host()
 SCRIPT_DIR = Path(os.path.dirname(os.path.abspath(__file__)))
+HEADERS = {"Accept": "application/json"}
 
 def check_api_server() -> None:
     print(f"Checking API server at {API_BASE}...")
@@ -159,6 +159,83 @@ def commit_layers(project_id: str, project_dir: Path) -> None:
 
     print("  Commit IDs saved to lib/commit-ids.json")
 
+
+def delete_project_by_name(project_name: str):
+    project = get_project_by_name(project_name=project_name)
+    if project:
+        delete_project(project_id=project["@id"])
+    else:
+        print(f"Project with name '{project_name}' not found. Cannot delete.")
+
+def delete_project(project_id: str):
+    API_BASE = get_host() 
+    r = requests.delete(f"{API_BASE}/projects/{project_id}")
+    if r.status_code == 204:
+        print(f"Project {project_id} deleted successfully.")
+    else:
+        print(f"Failed to delete project {project_id}: HTTP {r.status_code} - {r.text}")
+
+def get_project_ids() -> list:
+    host = get_host()
+
+    projects_url = f"{host}/projects"
+    response = requests.get(projects_url)
+    if response.status_code == 200:
+        projects = response.json()
+        for project in projects:
+            print(f"Project Name: {project['name']}, ID: {project['@id']}")
+        return projects
+    else:
+        print(f"Failed to fetch projects: {response.status_code} - {response.text}")
+        return []
+    
+
+def get_branches_in_project(project_id: str) -> list:
+    host = get_host()
+    url = f"{host}/projects/{project_id}/branches"
+
+    r = requests.get(url, headers=HEADERS)
+    r.raise_for_status()
+
+    branches = r.json()
+    return branches
+
+
+def get_head_branch(project_id: str) -> dict:
+    branches = get_branches_in_project(project_id)
+
+    # Look for main branch in all returned branches.
+    main_branch = next(b for b in branches if b.get("name") in ("main", "master"))
+    return main_branch
+
+def get_head_commit(project_id: str) -> str:
+    branch = get_head_branch(project_id)
+    return branch["head"]["@id"]
+
+
+
+def get_project_by_name(project_name: str):
+    """Fetches the project with the given name and returns its details, including ID."""
+
+    projects = get_project_ids()
+    target_project = None
+    for project in projects:
+        if project["name"] == project_name:
+            print(f"Found project: {project['name']} with ID: {project['@id']}")
+            target_project = project
+    return target_project
+
+
+
+def get_project_info(project_name: str): 
+    project = get_project_by_name(project_name=project_name)
+    head_branch = get_head_branch(project["@id"])
+    try: 
+        branch_id, commit_id = head_branch["@id"], head_branch["referencedCommit"]["@id"]
+    except Exception as e:
+        branch_id, commit_id = None, None
+    print(f"Project name: {project_name}, Project ID: {project['@id']}, Branch ID: {branch_id}, Commit ID: {commit_id}")
+    return project, branch_id, commit_id
 
 def main() -> None:
     project_dir = Path("/mnt/c/Users/SINKAA/Desktop/code/mons_wp1/SysMLInfra/examples/bilgepump")

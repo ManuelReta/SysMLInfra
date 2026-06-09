@@ -1,0 +1,15 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-ra -q"
+markers = [
+    "model: model-level tests using Python fallback evaluator",
+    "unit: unit tests for individual functions",
+    "z3: tests requiring z3-solver package",
+]
+
+[tool.coverage.run]
+source = ["scripts", "bilgepump"]
+omit   = ["STPA_Tool/*", "tests/*", ".venv/*"]
