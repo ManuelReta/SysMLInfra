@@ -226,6 +226,72 @@ def _run_fallback(
     return results
 
 
+# ── Kernel %eval helper ───────────────────────────────────────────────────────
+
+def _build_kernel_eval_cells(
+    layer_paths: list[str],
+    negative: bool,
+) -> list[tuple[str, str, str]]:
+    """
+    Build (req_name, sysml_expr, label) triples to send as %eval cells.
+
+    sysml_expr is the constraint expression with every bind-value path
+    replaced by its numeric / Boolean literal so the expression is self-
+    contained and contains no model-member references.  The expression is
+    valid SysML syntax; the kernel evaluates it via ExpressionEvaluator.INSTANCE.
+
+    Examples:
+        "sys.sensor.waterLevel <= 0.30"
+          → "0.15 <= 0.3"            (bind sys.sensor.waterLevel = 0.15)
+        "sys.pumpB.isRedundant == true"
+          → "true == true"           (bind sys.pumpB.isRedundant = true)
+    """
+    analysis_path     = next((p for p in layer_paths if 'analysis'     in p.lower()), None)
+    requirements_path = next((p for p in layer_paths if 'requirements' in p.lower()), None)
+    safety_path       = next((p for p in layer_paths if 'safety'       in p.lower()), None)
+
+    if not analysis_path or not requirements_path:
+        return []
+
+    analysis_text = _strip_comments(_read(os.path.join(REPO_ROOT, analysis_path)))
+    bind_values, bare_values = _build_bind_values(analysis_text, negative)
+
+    req_texts: list[str] = []
+    for rp in (requirements_path, safety_path):
+        if rp and os.path.exists(os.path.join(REPO_ROOT, rp)):
+            req_texts.append(_strip_comments(_read(os.path.join(REPO_ROOT, rp))))
+
+    req_pattern = re.compile(
+        r'requirement\s+def\s+(\w+).*?require\s+constraint\s*\{([^}]+)\}',
+        re.DOTALL,
+    )
+
+    eval_cells: list[tuple[str, str, str]] = []
+    for text in req_texts:
+        for m in req_pattern.finditer(text):
+            req_name = m.group(1)
+            expr     = re.sub(r'\s+', ' ', m.group(2).strip())
+            # Substitute full-path bind values (longest first to avoid partial matches)
+            for path, val in sorted(bind_values.items(), key=lambda x: -len(x[0])):
+                sysml_lit = ('true' if val else 'false') if isinstance(val, bool) else repr(val)
+                expr = re.sub(r'\b' + re.escape(path) + r'\b', sysml_lit, expr)
+            # Substitute bare-name bind values
+            for bare, val in sorted(bare_values.items(), key=lambda x: -len(x[0])):
+                sysml_lit = ('true' if val else 'false') if isinstance(val, bool) else repr(val)
+                expr = re.sub(r'\b' + re.escape(bare) + r'\b', sysml_lit, expr)
+            # Strip unit annotations: "0.3 m" → "0.3"
+            # Negative lookahead prevents matching SysML boolean/logic keywords.
+            expr = re.sub(
+                r'(?<=[\d)])\s+(?!(?:and|or|not|if|else|then|implies|true|false)\b)'
+                r'[a-zA-Z/\u00b3\u00b2\u00b0]+\b',
+                '',
+                expr,
+            ).strip()
+            eval_cells.append((req_name, expr, REQ_LABELS.get(req_name, req_name)))
+
+    return eval_cells
+
+
 # ── Kernel path: nbclient execution ──────────────────────────────────────────
 
 def _discover_sysml_kernel() -> str | None:
@@ -243,14 +309,64 @@ def _discover_sysml_kernel() -> str | None:
     return None
 
 
+def _parse_kernel_eval_output(cell: dict) -> bool | None:
+    """
+    Extract the boolean result from a kernel %eval cell output.
+
+    The SysML v2 kernel evaluates the expression via
+    ExpressionEvaluator.INSTANCE and returns a string like "true" or "false"
+    (possibly wrapped in element formatting).  Returns None if the output
+    cannot be parsed (treat as UNKNOWN).
+    """
+    outputs = cell.get('outputs', [])
+    text = ''
+    for o in outputs:
+        otype = o.get('output_type', '')
+        if otype == 'stream':
+            text += ''.join(o.get('text', []))
+        elif otype == 'execute_result':
+            data = o.get('data', {})
+            plain = data.get('text/plain', [])
+            text += ''.join(plain) if isinstance(plain, list) else plain
+        elif otype == 'error':
+            # Kernel reported an error — evaluation failed
+            return None
+    lowered = text.strip().lower()
+    if not lowered:
+        return None
+    # "true" anywhere → True; "false" anywhere → False
+    # "false" takes precedence over "true" in ambiguous output
+    has_true  = 'true'  in lowered
+    has_false = 'false' in lowered
+    if has_false:
+        return False
+    if has_true:
+        return True
+    return None
+
+
 def _run_kernel(
     layer_paths: list[str],
     kernel_name: str,
-) -> tuple[bool, list[dict]]:
+    eval_cells: list[tuple[str, str, str]] | None = None,
+) -> tuple[bool, list[dict], list[dict]]:
     """
     Execute all layers via nbclient using the registered SysML v2 Jupyter kernel.
-    Returns (all_passed, kernel_cell_results).
-    kernel_cell_results is a list of {layer, ok, errors} per cell.
+
+    After loading the model layers, optional *eval_cells* are appended.
+    Each entry is ``(req_name, sysml_expr, label)`` where *sysml_expr* is a
+    fully-substituted SysML boolean expression (no model-member references).
+    The kernel evaluates each one via the ``%eval`` magic, which calls
+    ``ExpressionEvaluator.INSTANCE`` — the real SysML constraint solver.
+
+    Returns:
+        (all_passed, kernel_cell_results, eval_results)
+
+        kernel_cell_results — [{layer, ok, errors}] per model layer cell
+        eval_results        — [{requirement, satisfied, expr, label, source}]
+                              ``source`` is ``'kernel:%eval'`` for results
+                              evaluated by the kernel, or ``None`` if the
+                              kernel reported an error for that cell.
     """
     try:
         import nbformat
@@ -267,9 +383,27 @@ def _run_kernel(
         'language':     'sysml',
         'name':         kernel_name,
     }
+
+    # ── Model layer cells ─────────────────────────────────────────────────────
+    n_model_cells = len(layer_paths)
     for layer_file in layer_paths:
         abs_path = os.path.join(REPO_ROOT, layer_file)
         nb.cells.append(nbformat.v4.new_code_cell(_read(abs_path)))
+
+    # ── %eval requirement cells ───────────────────────────────────────────────
+    #   Each cell contains exactly one %eval <compact_expr> magic command.
+    #   Spaces are removed so the expression is ONE token (MagicsArgs.optional).
+    #   The SysML v2 kernel wraps it as  calc { <compact_expr>; }
+    #   and runs it through ExpressionEvaluator.INSTANCE — NOT Python eval().
+    if eval_cells:
+        for _req_name, _expr, _label in eval_cells:
+            _compact = re.sub(
+                r'\s+', '',
+                _expr.replace(' or ', '|').replace(' and ', '&'),
+            )
+            cell = nbformat.v4.new_code_cell(f'%eval {_compact}')
+            cell.metadata['tags'] = ['raises-exception']
+            nb.cells.append(cell)
 
     client = NotebookClient(
         nb,
@@ -307,11 +441,13 @@ def _run_kernel(
 
     if _exec_error is not None:
         print(red(f'\nKernel execution error: {_exec_error}'))
-        return False, []
+        return False, [], []
 
-    cell_results = []
+    # ── Parse model layer results ─────────────────────────────────────────────
+    cell_results: list[dict] = []
     all_ok = True
-    for i, cell in enumerate(nb.cells):
+    for i in range(n_model_cells):
+        cell   = nb.cells[i]
         errors = [o for o in cell.get('outputs', []) if o.get('output_type') == 'error']
         cell_results.append({
             'layer':  layer_paths[i],
@@ -321,7 +457,21 @@ def _run_kernel(
         if errors:
             all_ok = False
 
-    return all_ok, cell_results
+    # ── Parse %eval results ───────────────────────────────────────────────────
+    eval_results: list[dict] = []
+    if eval_cells:
+        for j, (req_name, expr, label) in enumerate(eval_cells):
+            cell      = nb.cells[n_model_cells + j]
+            satisfied = _parse_kernel_eval_output(cell)
+            eval_results.append({
+                'requirement': req_name,
+                'satisfied':   satisfied,
+                'expr':        expr,
+                'label':       label,
+                'source':      'kernel:%eval',
+            })
+
+    return all_ok, cell_results, eval_results
 
 
 # ── Output formatting ─────────────────────────────────────────────────────────
@@ -339,7 +489,7 @@ def _print_header(project_name: str, mode: str, engine: str) -> None:
 
 
 def _print_layer_summary(cell_results: list[dict]) -> None:
-    print(f'\n  {bold("Kernel layer compilation:")}')
+    print(f'\n  {bold("Kernel layer parse + type-check:")}')
     for cr in cell_results:
         icon  = green('✓') if cr['ok'] else yellow('⚠')
         label = os.path.basename(cr['layer'])
@@ -354,13 +504,24 @@ def _print_layer_summary(cell_results: list[dict]) -> None:
 
 def _print_results(results: list[dict], show_expr: bool = False) -> tuple[bool, list[str]]:
     violated: list[str] = []
+    # Determine whether all results came from the kernel, all from Python, or mixed
+    sources = {r.get('source') for r in results}
+    if sources == {'kernel:%eval'}:
+        section_label = 'Requirement evaluation  [engine: SysML kernel %eval]'
+    elif not sources or sources == {None} or not any(s and 'kernel' in s for s in sources):
+        section_label = 'Requirement evaluation  [engine: Python regex/eval — fallback]'
+    else:
+        section_label = 'Requirement evaluation  [engine: mixed — kernel + Python fallback]'
+
     print()
-    print(f'  {bold("Requirement evaluation:")}')
+    print(f'  {bold(section_label)}')
     print('  ' + '─' * (_WIDE - 2))
     for r in results:
         sat   = r.get('satisfied')
         name  = r['requirement']
         label = r.get('label', REQ_LABELS.get(name, name))
+        src   = r.get('source', '')
+        src_note = dim(f' [python]') if src == 'python-fallback' else ''
         if sat is True:
             icon   = green('✓  SATISFIED')
             prefix = green
@@ -371,7 +532,7 @@ def _print_results(results: list[dict], show_expr: bool = False) -> tuple[bool, 
         else:
             icon   = yellow('?  UNKNOWN  ')
             prefix = yellow
-        print(f'  {icon}   {label}')
+        print(f'  {icon}   {label}{src_note}')
         if show_expr and r.get('expr'):
             print(f'              {dim(r["expr"][:72])}')
     print('  ' + '─' * (_WIDE - 2))
@@ -718,7 +879,11 @@ def main() -> None:
             print(yellow('═' * 66))
             use_kernel = False
 
-    engine_label = f'SysML v2 kernel ({kernel_name})' if use_kernel else 'Python regex/eval (fallback)'
+    engine_label = (
+        f'SysML v2 kernel ({kernel_name}) — parse/type-check + %eval constraint evaluation'
+        if use_kernel else
+        'Python regex/eval (fallback — NOT authoritative)'
+    )
     _print_header(project_name, mode_label, engine_label)
 
     results: list[dict] = []
@@ -726,15 +891,30 @@ def main() -> None:
     # ── Kernel path ────────────────────────────────────────────────────────────
     if use_kernel and kernel_name:
         print(f'\n  {dim("Starting SysML v2 kernel — this takes ~10 s on first run...")}')
-        all_ok, cell_results = _run_kernel(layer_set, kernel_name)
+        eval_cells = _build_kernel_eval_cells(layer_set, args.negative)
+        all_ok, cell_results, eval_results = _run_kernel(layer_set, kernel_name, eval_cells)
         if cell_results:
             _print_layer_summary(cell_results)
 
-        # The kernel validates syntax and assert requirements natively.
-        # We also run the Python evaluator to extract per-requirement status
-        # for structured logging, fault tracing, and diagram generation.
-        print(f'\n  {dim("Extracting per-requirement results (for logging/tracing)...")}')
-        results = _run_fallback(all_layers, args.negative, args.verbose)
+        if eval_results:
+            # Kernel evaluated requirements via ExpressionEvaluator.INSTANCE (%eval).
+            # For any cell where the kernel returned an error or unparseable output,
+            # fill in the result using Python fallback so nothing is silently lost.
+            unknown_reqs = [r['requirement'] for r in eval_results if r['satisfied'] is None]
+            if unknown_reqs:
+                print(f'\n  {yellow(f"⚠  {len(unknown_reqs)} requirement(s) returned UNKNOWN from kernel — using Python fallback for those.")}')
+                fb_results = _run_fallback(layer_set, args.negative)
+                fb_map = {r['requirement']: r for r in fb_results}
+                for r in eval_results:
+                    if r['satisfied'] is None and r['requirement'] in fb_map:
+                        r['satisfied'] = fb_map[r['requirement']].get('satisfied')
+                        r['source'] = 'python-fallback'
+            results = eval_results
+        else:
+            # No eval cells were built (analysis/requirements files not found).
+            # Fall back entirely so we still produce some output.
+            print(f'\n  {yellow("⚠  No %eval cells built — kernel only checked syntax.")}')
+            results = _run_fallback(layer_set, args.negative, args.verbose)
     else:
         # ── Fallback path ──────────────────────────────────────────────────────
         results = _run_fallback(layer_set, args.negative, args.verbose)
