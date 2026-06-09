@@ -27,14 +27,14 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-REPO_ROOT      = Path(__file__).parent.parent.resolve()
-TRACEABILITY   = REPO_ROOT / "lib" / "traceability.json"
-BUILD_STATE    = REPO_ROOT / "lib" / "build-state.json"
+REPO_ROOT = Path(__file__).parent.parent.resolve()
+TRACEABILITY = REPO_ROOT / "lib" / "traceability.json"
+BUILD_STATE = REPO_ROOT / "lib" / "build-state.json"
+
 
 # Derive ingested-docs directory from the first layer in sysml-project.yml.
 # The convention is: layers live at  examples/<project>/*.sysml,
@@ -45,7 +45,7 @@ def _derive_ingested_dir() -> Path:
         with open(manifest) as fh:
             for line in fh:
                 s = line.strip()
-                if s.startswith('- ') and s.endswith('.sysml'):
+                if s.startswith("- ") and s.endswith(".sysml"):
                     first_layer = Path(s[2:].strip())
                     return REPO_ROOT / first_layer.parent / "docs" / "ingested"
     except Exception:
@@ -55,13 +55,15 @@ def _derive_ingested_dir() -> Path:
         return p
     return REPO_ROOT / "docs" / "ingested"
 
+
 INGESTED_DIR = _derive_ingested_dir()
 
 REQUIREMENTS_JSON = INGESTED_DIR / "requirements" / "solas-regulatory-extract.json"
-COMPONENTS_JSON   = INGESTED_DIR / "components" / "bom-component-list.json"
+COMPONENTS_JSON = INGESTED_DIR / "components" / "bom-component-list.json"
 
 
 # ── Parsers ───────────────────────────────────────────────────────────────────
+
 
 def _parse_requirements(path: Path, verbose: bool) -> tuple[list, list]:
     """
@@ -76,26 +78,28 @@ def _parse_requirements(path: Path, verbose: bool) -> tuple[list, list]:
 
     for req in data.get("requirements", []):
         req_entry = {
-            "id":                 req.get("id", ""),
-            "name":               req.get("name", ""),
-            "text":               req.get("text", ""),
-            "subject":            req.get("subject", ""),
-            "regulatory_source":  req.get("regulatory_source", ""),
-            "regulation_id":      req.get("regulation_id", ""),
+            "id": req.get("id", ""),
+            "name": req.get("name", ""),
+            "text": req.get("text", ""),
+            "subject": req.get("subject", ""),
+            "regulatory_source": req.get("regulatory_source", ""),
+            "regulation_id": req.get("regulation_id", ""),
             "verification_method": req.get("verification_method", "analysis"),
-            "source_doc":         req.get("source_doc", ""),
-            "section":            str(req.get("section", "")),
+            "source_doc": req.get("source_doc", ""),
+            "section": str(req.get("section", "")),
         }
         requirements.append(req_entry)
 
         expr = req.get("constraint_expression", "")
         if expr:
-            constraint_defs.append({
-                "name":    req.get("name", "") + "_constraint",
-                "req_id":  req.get("id", ""),
-                "expr":    expr,
-                "unit":    req.get("constraint_unit", ""),
-            })
+            constraint_defs.append(
+                {
+                    "name": req.get("name", "") + "_constraint",
+                    "req_id": req.get("id", ""),
+                    "expr": expr,
+                    "unit": req.get("constraint_unit", ""),
+                }
+            )
 
         if verbose:
             print(f"  REQ  {req_entry['id']:12}  {req_entry['name']}")
@@ -117,31 +121,37 @@ def _parse_components(path: Path, verbose: bool) -> tuple[list, list, list]:
 
     for comp in data.get("components", []):
         name = comp.get("name", "")
-        part_defs.append({
-            "name":         name,
-            "part_number":  comp.get("part_number", ""),
-            "description":  comp.get("description", ""),
-            "manufacturer": comp.get("manufacturer", ""),
-            "model":        comp.get("model", ""),
-            "source_doc":   comp.get("source_doc", ""),
-        })
+        part_defs.append(
+            {
+                "name": name,
+                "part_number": comp.get("part_number", ""),
+                "description": comp.get("description", ""),
+                "manufacturer": comp.get("manufacturer", ""),
+                "model": comp.get("model", ""),
+                "source_doc": comp.get("source_doc", ""),
+            }
+        )
 
         for port in comp.get("ports", []):
-            port_defs.append({
-                "name":       port.get("name", ""),
-                "owner":      name,
-                "type":       port.get("type", ""),
-                "direction":  port.get("direction", ""),
-            })
+            port_defs.append(
+                {
+                    "name": port.get("name", ""),
+                    "owner": name,
+                    "type": port.get("type", ""),
+                    "direction": port.get("direction", ""),
+                }
+            )
 
         for attr in comp.get("attributes", []):
-            attr_defs.append({
-                "name":       attr.get("name", ""),
-                "owner":      name,
-                "type":       attr.get("type", "Real"),
-                "unit":       attr.get("unit", ""),
-                "nominal":    attr.get("nominal"),
-            })
+            attr_defs.append(
+                {
+                    "name": attr.get("name", ""),
+                    "owner": name,
+                    "type": attr.get("type", "Real"),
+                    "unit": attr.get("unit", ""),
+                    "nominal": attr.get("nominal"),
+                }
+            )
 
         if verbose:
             n_ports = len(comp.get("ports", []))
@@ -166,15 +176,19 @@ def _parse_connections(ingested_dir: Path, verbose: bool) -> list[dict]:
             with open(f) as fh:
                 data = json.load(fh)
             for conn in data.get("connections", []):
-                connections.append({
-                    "id":     conn.get("id", ""),
-                    "from":   conn.get("from", ""),
-                    "to":     conn.get("to", ""),
-                    "type":   conn.get("type", "signal"),
-                    "label":  conn.get("label", ""),
-                })
+                connections.append(
+                    {
+                        "id": conn.get("id", ""),
+                        "from": conn.get("from", ""),
+                        "to": conn.get("to", ""),
+                        "type": conn.get("type", "signal"),
+                        "label": conn.get("label", ""),
+                    }
+                )
             if verbose:
-                print(f"  CONN {f.name:<40}  {len(data.get('connections', []))} connection(s)")
+                print(
+                    f"  CONN {f.name:<40}  {len(data.get('connections', []))} connection(s)"
+                )
         except (json.JSONDecodeError, KeyError):
             pass
 
@@ -182,6 +196,7 @@ def _parse_connections(ingested_dir: Path, verbose: bool) -> list[dict]:
 
 
 # ── Build-state updater ───────────────────────────────────────────────────────
+
 
 def _update_build_state(build_state_path: Path, verbose: bool) -> None:
     """Set phase6.traceability = 'complete' in build-state.json."""
@@ -199,18 +214,19 @@ def _update_build_state(build_state_path: Path, verbose: bool) -> None:
         state["phaseStatus"]["phase6"] = {}
 
     state["phaseStatus"]["phase6"]["traceability"] = "complete"
-    state["phaseStatus"]["phase6"]["bootstrap_timestamp"] = (
-        datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    )
+    state["phaseStatus"]["phase6"]["bootstrap_timestamp"] = datetime.now(
+        timezone.utc
+    ).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     with open(build_state_path, "w") as f:
         json.dump(state, f, indent=2)
 
     if verbose:
-        print(f"  build-state.json → phase6.traceability = 'complete'")
+        print("  build-state.json → phase6.traceability = 'complete'")
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(
@@ -218,22 +234,29 @@ def main() -> None:
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--dry-run",  action="store_true",
-                        help="Print what would be written without modifying any files.")
-    parser.add_argument("--verbose",  action="store_true",
-                        help="Print each entry as it is parsed.")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print what would be written without modifying any files.",
+    )
+    parser.add_argument(
+        "--verbose", action="store_true", help="Print each entry as it is parsed."
+    )
     args = parser.parse_args()
+    run_trace(args)
 
+
+def run_trace(args) -> None:
     print("\nBootstrapping traceability index...")
     print("─" * 60)
 
     # ── Parse sources ─────────────────────────────────────────────────────────
-    requirements: list[dict]    = []
+    requirements: list[dict] = []
     constraint_defs: list[dict] = []
-    part_defs: list[dict]       = []
-    port_defs: list[dict]       = []
-    attr_defs: list[dict]       = []
-    connections: list[dict]     = []
+    part_defs: list[dict] = []
+    port_defs: list[dict] = []
+    attr_defs: list[dict] = []
+    connections: list[dict] = []
 
     if REQUIREMENTS_JSON.exists():
         if args.verbose:
@@ -242,8 +265,10 @@ def main() -> None:
         requirements.extend(r)
         constraint_defs.extend(c)
     else:
-        print(f"  WARNING: {REQUIREMENTS_JSON.relative_to(REPO_ROOT)} not found — skipping",
-              file=sys.stderr)
+        print(
+            f"  WARNING: {REQUIREMENTS_JSON.relative_to(REPO_ROOT)} not found — skipping",
+            file=sys.stderr,
+        )
 
     if COMPONENTS_JSON.exists():
         if args.verbose:
@@ -253,8 +278,10 @@ def main() -> None:
         port_defs.extend(po)
         attr_defs.extend(a)
     else:
-        print(f"  WARNING: {COMPONENTS_JSON.relative_to(REPO_ROOT)} not found — skipping",
-              file=sys.stderr)
+        print(
+            f"  WARNING: {COMPONENTS_JSON.relative_to(REPO_ROOT)} not found — skipping",
+            file=sys.stderr,
+        )
 
     connections = _parse_connections(INGESTED_DIR, args.verbose)
 
@@ -266,32 +293,34 @@ def main() -> None:
             existing = json.load(f)
 
     output = {
-        "_comment":      existing.get("_comment",
-                         "Traceability index. Each mapper agent appends entries here. "
-                         "TraceabilityAgent reads this as ground truth."),
-        "_bootstrap":    {
+        "_comment": existing.get(
+            "_comment",
+            "Traceability index. Each mapper agent appends entries here. "
+            "TraceabilityAgent reads this as ground truth.",
+        ),
+        "_bootstrap": {
             "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "sources": [
                 str(REQUIREMENTS_JSON.relative_to(REPO_ROOT)),
                 str(COMPONENTS_JSON.relative_to(REPO_ROOT)),
             ],
             "counts": {
-                "requirements":   len(requirements),
+                "requirements": len(requirements),
                 "constraintDefs": len(constraint_defs),
-                "partDefs":       len(part_defs),
-                "portDefs":       len(port_defs),
-                "attributeDefs":  len(attr_defs),
-                "connections":    len(connections),
+                "partDefs": len(part_defs),
+                "portDefs": len(port_defs),
+                "attributeDefs": len(attr_defs),
+                "connections": len(connections),
             },
         },
-        "portDefs":       port_defs,
-        "attributeDefs":  attr_defs,
-        "partDefs":       part_defs,
-        "connections":    connections,
-        "requirements":   requirements,
+        "portDefs": port_defs,
+        "attributeDefs": attr_defs,
+        "partDefs": part_defs,
+        "connections": connections,
+        "requirements": requirements,
         "constraintDefs": constraint_defs,
-        "allocations":    existing.get("allocations", []),
-        "analysisDefs":   existing.get("analysisDefs", []),
+        "allocations": existing.get("allocations", []),
+        "analysisDefs": existing.get("analysisDefs", []),
     }
 
     # ── Summary ───────────────────────────────────────────────────────────────

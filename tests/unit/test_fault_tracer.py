@@ -5,9 +5,6 @@ Unit tests for scripts/fault_tracer.py.
 Tests the bind index parser, annotation detection, and trace generation.
 No SysML kernel required.
 """
-import os
-import tempfile
-import pathlib
 
 import pytest
 
@@ -15,6 +12,7 @@ from fault_tracer import FaultTracer, build_bind_index
 
 
 # ── build_bind_index ──────────────────────────────────────────────────────────
+
 
 class TestBuildBindIndex:
     """Tests for fault_tracer.build_bind_index()."""
@@ -39,11 +37,7 @@ class TestBuildBindIndex:
 
     def test_line_number_recorded(self, tmp_path):
         sysml = tmp_path / "Analysis.sysml"
-        sysml.write_text(
-            "// line 1\n"
-            "// line 2\n"
-            "bind sys.sensor.waterLevel = 0.15;\n"
-        )
+        sysml.write_text("// line 1\n// line 2\nbind sys.sensor.waterLevel = 0.15;\n")
         idx = build_bind_index(["Analysis.sysml"], str(tmp_path))
         assert idx["sys.sensor.waterLevel"]["line"] == 3
 
@@ -53,10 +47,7 @@ class TestBuildBindIndex:
 
     def test_comment_stripped_before_parse(self, tmp_path):
         sysml = tmp_path / "Analysis.sysml"
-        sysml.write_text(
-            "// bind sys.fake.attr = 99.0;\n"
-            "bind sys.real.attr = 1.0;\n"
-        )
+        sysml.write_text("// bind sys.fake.attr = 99.0;\nbind sys.real.attr = 1.0;\n")
         idx = build_bind_index(["Analysis.sysml"], str(tmp_path))
         assert "sys.fake.attr" not in idx
         assert "sys.real.attr" in idx
@@ -64,18 +55,21 @@ class TestBuildBindIndex:
 
 # ── FaultTracer integration ───────────────────────────────────────────────────
 
+
 class TestFaultTracerLoad:
     """Tests that FaultTracer loads successfully against the real model."""
 
     def test_load_without_errors(self, repo_root, manifest_path):
-        import verify
+        import sys_infra.verify as verify
+
         _, layers, _ = verify._read_manifest(manifest_path)
         tracer = FaultTracer(str(repo_root), layers, negative=False)
-        tracer.load()   # must not raise
+        tracer.load()  # must not raise
         assert tracer._bind_index is not None
 
     def test_trace_violations_empty_for_no_violations(self, repo_root, manifest_path):
-        import verify
+        import sys_infra.verify as verify
+
         _, layers, _ = verify._read_manifest(manifest_path)
         tracer = FaultTracer(str(repo_root), layers, negative=False)
         tracer.load()
@@ -83,7 +77,8 @@ class TestFaultTracerLoad:
         assert traces == []
 
     def test_trace_returns_results_for_known_violation(self, repo_root, manifest_path):
-        import verify
+        import sys_infra.verify as verify
+
         _, layers, _ = verify._read_manifest(manifest_path)
         tracer = FaultTracer(str(repo_root), layers, negative=False)
         tracer.load()

@@ -4,21 +4,21 @@ tests/unit/test_verify_helpers.py
 Unit tests for the internal helper functions in verify.py.
 No SysML kernel required — all tests use the Python regex/eval path.
 """
+
 import json
-import os
-import tempfile
 
 import pytest
 
-import verify
+import sys_infra.verify as verify
 
 
 # ── _eval_requirement ─────────────────────────────────────────────────────────
 
+
 class TestEvalRequirement:
     """Tests for verify._eval_requirement()."""
 
-    def test_simple_le_satisfied(self):
+    def test_simple_le_satisfied(self) -> None:
         bind = {"sys.sensor.waterLevel": 0.15}
         bare = {"waterLevel": 0.15}
         result = verify._eval_requirement(
@@ -29,7 +29,7 @@ class TestEvalRequirement:
         )
         assert result is True
 
-    def test_simple_le_violated(self):
+    def test_simple_le_violated(self) -> None:
         bind = {"sys.sensor.waterLevel": 0.35}
         bare = {"waterLevel": 0.35}
         result = verify._eval_requirement(
@@ -40,7 +40,7 @@ class TestEvalRequirement:
         )
         assert result is False
 
-    def test_boolean_true(self):
+    def test_boolean_true(self) -> None:
         bind = {"sys.pumpB.isRedundant": True}
         bare = {"isRedundant": True}
         result = verify._eval_requirement(
@@ -51,7 +51,7 @@ class TestEvalRequirement:
         )
         assert result is True
 
-    def test_boolean_false(self):
+    def test_boolean_false(self) -> None:
         bind = {"sys.pumpB.isRedundant": False}
         bare = {"isRedundant": False}
         result = verify._eval_requirement(
@@ -62,7 +62,7 @@ class TestEvalRequirement:
         )
         assert result is False
 
-    def test_product_expression(self):
+    def test_product_expression(self) -> None:
         # FT-002: (pumpA.flowRate * pumpA.efficiency + pumpB.flowRate * pumpB.efficiency)
         #         * (1.0 - discharge.pipeLossFactor) >= 0.030
         bind = {
@@ -82,7 +82,7 @@ class TestEvalRequirement:
         # (0.025*0.82 + 0.025*0.82) * 0.95 = 0.02050 * 2 * 0.95 = 0.0390 ≥ 0.030 ✓
         assert result is True
 
-    def test_unparseable_returns_none(self):
+    def test_unparseable_returns_none(self) -> None:
         result = verify._eval_requirement(
             "Mystery",
             "some.unknown.expr(foo)",
@@ -91,7 +91,7 @@ class TestEvalRequirement:
         )
         assert result is None
 
-    def test_addition_constraint(self):
+    def test_addition_constraint(self) -> None:
         bind = {"sys.sensor.waterLevel": 0.15, "sys.sensor.accuracy_m": 0.03}
         bare = {"waterLevel": 0.15, "accuracy_m": 0.03}
         result = verify._eval_requirement(
@@ -106,6 +106,7 @@ class TestEvalRequirement:
 
 # ── _build_bind_values ────────────────────────────────────────────────────────
 
+
 class TestBuildBindValues:
     """Tests for verify._build_bind_values()."""
 
@@ -117,25 +118,25 @@ class TestBuildBindValues:
         bind sys.controller.triggerLevel_m = 0.25;
     """
 
-    def test_numeric_values_parsed(self):
+    def test_numeric_values_parsed(self) -> None:
         full, bare = verify._build_bind_values(self.SAMPLE_TEXT, negative=False)
         assert full["sys.sensor.waterLevel"] == pytest.approx(0.15)
         assert full["sys.pumpA.flowRate"] == pytest.approx(0.025)
 
-    def test_boolean_true_parsed(self):
+    def test_boolean_true_parsed(self) -> None:
         full, bare = verify._build_bind_values(self.SAMPLE_TEXT, negative=False)
         assert full["sys.pumpB.isRedundant"] is True
 
-    def test_boolean_false_parsed(self):
+    def test_boolean_false_parsed(self) -> None:
         full, bare = verify._build_bind_values(self.SAMPLE_TEXT, negative=False)
         assert full["sys.alarm.isActive"] is False
 
-    def test_bare_index_populated(self):
+    def test_bare_index_populated(self) -> None:
         full, bare = verify._build_bind_values(self.SAMPLE_TEXT, negative=False)
         assert bare["waterLevel"] == pytest.approx(0.15)
         assert bare["triggerLevel_m"] == pytest.approx(0.25)
 
-    def test_negative_zeroes_pumpA_flowRate(self, capsys):
+    def test_negative_zeroes_pumpA_flowRate(self, capsys) -> None:
         full, bare = verify._build_bind_values(self.SAMPLE_TEXT, negative=True)
         assert full["sys.pumpA.flowRate"] == 0.0
         assert bare["flowRate"] == 0.0
@@ -143,22 +144,23 @@ class TestBuildBindValues:
 
 # ── _read_manifest ────────────────────────────────────────────────────────────
 
+
 class TestReadManifest:
     """Tests for verify._read_manifest()."""
 
-    def test_reads_real_manifest(self, manifest_path):
+    def test_reads_real_manifest(self, manifest_path) -> None:
         name, layers, validation_layers = verify._read_manifest(manifest_path)
         assert isinstance(name, str) and name
         assert isinstance(layers, list) and len(layers) > 0
-        assert all(l.endswith(".sysml") for l in layers)
+        assert all(layer.endswith(".sysml") for layer in layers)
 
-    def test_validation_layers_subset(self, manifest_path):
+    def test_validation_layers_subset(self, manifest_path) -> None:
         name, layers, validation_layers = verify._read_manifest(manifest_path)
         if validation_layers is not None:
             vl_set = set(validation_layers)
             assert vl_set.issubset(set(layers))
 
-    def test_synthetic_manifest(self, tmp_path):
+    def test_synthetic_manifest(self, tmp_path) -> None:
         manifest = tmp_path / "sysml-project.yml"
         manifest.write_text(
             "name: TestProject\n"
@@ -170,11 +172,15 @@ class TestReadManifest:
         )
         name, layers, vl = verify._read_manifest(str(manifest))
         assert name == "TestProject"
-        assert layers == ["examples/myproject/Library.sysml", "examples/myproject/Architecture.sysml"]
+        assert layers == [
+            "examples/myproject/Library.sysml",
+            "examples/myproject/Architecture.sysml",
+        ]
         assert vl == ["examples/myproject/Library.sysml"]
 
 
 # ── _save_results aggregation bug fix ────────────────────────────────────────
+
 
 class TestSaveResultsAggregation:
     """
@@ -193,7 +199,7 @@ class TestSaveResultsAggregation:
         with open(tmp_path / "verification-results.json") as f:
             return json.load(f)
 
-    def test_all_true_gives_all_satisfied_true(self, tmp_path):
+    def test_all_true_gives_all_satisfied_true(self, tmp_path) -> None:
         results = [
             {"requirement": "R1", "satisfied": True},
             {"requirement": "R2", "satisfied": True},
@@ -201,7 +207,7 @@ class TestSaveResultsAggregation:
         data = self._run_save(results, tmp_path)
         assert data["all_satisfied"] is True
 
-    def test_one_false_gives_all_satisfied_false(self, tmp_path):
+    def test_one_false_gives_all_satisfied_false(self, tmp_path) -> None:
         results = [
             {"requirement": "R1", "satisfied": True},
             {"requirement": "R2", "satisfied": False},
@@ -209,7 +215,7 @@ class TestSaveResultsAggregation:
         data = self._run_save(results, tmp_path)
         assert data["all_satisfied"] is False
 
-    def test_none_does_not_count_as_failure(self, tmp_path):
+    def test_none_does_not_count_as_failure(self, tmp_path) -> None:
         """
         None means 'could not evaluate' — not a formal violation.
         all_satisfied must be True when no requirement is explicitly False.
@@ -221,7 +227,7 @@ class TestSaveResultsAggregation:
         data = self._run_save(results, tmp_path)
         assert data["all_satisfied"] is True
 
-    def test_mixed_none_and_false_gives_false(self, tmp_path):
+    def test_mixed_none_and_false_gives_false(self, tmp_path) -> None:
         results = [
             {"requirement": "R1", "satisfied": True},
             {"requirement": "R2", "satisfied": None},

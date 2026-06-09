@@ -9,9 +9,10 @@ Tests:
   2. Negative test — pump A failure violates discharge requirements
   3. Key requirement checks — assert specific requirements are satisfied/violated
 """
+
 import pytest
 
-import verify
+import sys_infra.verify as verify
 
 
 pytestmark = pytest.mark.model
@@ -38,11 +39,14 @@ def negative_results(manifest):
 
 # ── Positive test (nominal values) ────────────────────────────────────────────
 
+
 class TestPositiveCase:
     """All validation_layers requirements must be SATISFIED at nominal values."""
 
     def test_no_requirement_violated(self, positive_results):
-        violated = [r["requirement"] for r in positive_results if r.get("satisfied") is False]
+        violated = [
+            r["requirement"] for r in positive_results if r.get("satisfied") is False
+        ]
         assert violated == [], f"Unexpected violations at nominal: {violated}"
 
     def test_all_key_requirements_satisfied(self, positive_results):
@@ -68,6 +72,7 @@ class TestPositiveCase:
     def test_all_satisfied_flag_is_true(self, positive_results, tmp_path):
         """Regression: all_satisfied must be True when no requirement is False."""
         import json
+
         original_lib = verify.LIB_DIR
         verify.LIB_DIR = str(tmp_path)
         try:
@@ -80,6 +85,7 @@ class TestPositiveCase:
 
 
 # ── Negative test (pump A failure) ────────────────────────────────────────────
+
 
 class TestNegativeCase:
     """With pumpA.flowRate=0, discharge requirements should be violated."""
@@ -106,6 +112,7 @@ class TestNegativeCase:
 
 
 # ── Result structure ──────────────────────────────────────────────────────────
+
 
 class TestResultStructure:
     """Verify the result list has the expected shape."""

@@ -35,21 +35,16 @@ Examples:
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 from pathlib import Path
+import sys_infra.verify as verify
 
 REPO_ROOT = Path(__file__).parent.parent.resolve()
-MANIFEST  = REPO_ROOT / "sysml-project.yml"
-
-# Allow importing verify.py helpers from the repo root
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
-
-import verify
+MANIFEST = REPO_ROOT / "sysml-project.yml"
 
 
 # ── Manifest helpers ──────────────────────────────────────────────────────────
+
 
 def _load_manifest() -> tuple[str, list[str]]:
     """Return (project_name, ordered_layers_list)."""
@@ -81,13 +76,14 @@ def _prerequisites(target: str, all_layers: list[str]) -> list[str]:
 
 # ── Output helpers ────────────────────────────────────────────────────────────
 
+
 def _print_result(target: str, results: list[dict], expect_violations: bool) -> bool:
     """
     Print per-requirement results for one target file.
     Returns True if the run counts as PASS.
     """
     violated = [r for r in results if r.get("satisfied") is False]
-    unknown  = [r for r in results if r.get("satisfied") is None]
+    unknown = [r for r in results if r.get("satisfied") is None]
 
     if not results:
         # Layer has no requirement defs (e.g. Library.sysml) — check file exists
@@ -114,38 +110,56 @@ def _print_result(target: str, results: list[dict], expect_violations: bool) -> 
             print(f"       VIOLATED  {r.get('label', r['requirement'])}")
         return False
 
-    print(f"  ✓  {target}  [{len(results)} SATISFIED"
-          + (f", {len(unknown)} UNKNOWN" if unknown else "") + "]")
+    print(
+        f"  ✓  {target}  [{len(results)} SATISFIED"
+        + (f", {len(unknown)} UNKNOWN" if unknown else "")
+        + "]"
+    )
     return True
 
 
 # ── Kernel check ──────────────────────────────────────────────────────────────
 
-def _check_with_kernel(layer_set: list[str]) -> tuple[bool, list[dict]]:
+
+def _check_with_kernel(
+    layer_set: list[str], project_dir: Path
+) -> tuple[bool, list[dict]]:
     kernel_name = verify._discover_sysml_kernel()
     if kernel_name is None:
         print()
         print("\033[33m" + "═" * 66 + "\033[0m")
-        print("\033[33m  WARNING: SysML v2 kernel NOT FOUND — running Python fallback\033[0m")
+        print(
+            "\033[33m  WARNING: SysML v2 kernel NOT FOUND — running Python fallback\033[0m"
+        )
         print("\033[33m  " + "─" * 64 + "\033[0m")
         print("\033[33m  The fallback is for development iteration ONLY.\033[0m")
-        print("\033[33m  Real constraint evaluation requires the SysML v2 kernel.\033[0m")
-        print("\033[33m  Install:  bash setup.sh  (requires Java 21 + Miniconda)\033[0m")
+        print(
+            "\033[33m  Real constraint evaluation requires the SysML v2 kernel.\033[0m"
+        )
+        print(
+            "\033[33m  Install:  bash setup.sh  (requires Java 21 + Miniconda)\033[0m"
+        )
         print("\033[33m" + "═" * 66 + "\033[0m")
         return False, []
-    all_ok, _ = verify._run_kernel(layer_set, kernel_name)
+    all_ok, _ = verify._run_kernel(layer_set, kernel_name, project_dir)
     # Also run fallback to extract per-requirement results for printing
-    results = verify._run_fallback(layer_set, negative=False)
+    results = verify._run_fallback(layer_set, negative=False, project_dir=project_dir)
     return all_ok, results
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="sysml_check.py",
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--project-dir",
+        default="/mnt/c/Users/SINKAA/Desktop/code/mons_wp1/SysMLInfra/examples/bilgepump",
+        help="Path to the project directory containing sysml-project.yml",
     )
     parser.add_argument(
         "targets",
@@ -169,7 +183,11 @@ def main() -> None:
         help="Show constraint expression for each requirement.",
     )
     args = parser.parse_args()
+    run_check(args)
 
+
+def run_check(args) -> None:
+    project_dir = Path(args.project_dir)
     project_name, all_layers = _load_manifest()
     print(f"\nSysML check — {project_name}")
     print("─" * 50)
@@ -177,7 +195,7 @@ def main() -> None:
     overall_pass = True
     for target in args.targets:
         target_norm = target.replace("\\", "/")
-        layer_set   = _prerequisites(target_norm, all_layers)
+        layer_set = _prerequisites(target_norm, all_layers)
 
         # Verify the target file exists
         target_path = REPO_ROOT / target_norm
@@ -191,17 +209,25 @@ def main() -> None:
             if args.fallback:
                 print()
                 print("\033[33m" + "═" * 66 + "\033[0m")
-                print("\033[33m  WARNING: ——fallback active — Python regex/eval only\033[0m")
+                print(
+                    "\033[33m  WARNING: ——fallback active — Python regex/eval only\033[0m"
+                )
                 print("\033[33m  " + "─" * 64 + "\033[0m")
                 print("\033[33m  For development and testing ONLY.\033[0m")
-                print("\033[33m  Always validate with the SysML v2 kernel before release.\033[0m")
+                print(
+                    "\033[33m  Always validate with the SysML v2 kernel before release.\033[0m"
+                )
                 print("\033[33m" + "═" * 66 + "\033[0m")
-            results = verify._run_fallback(layer_set, negative=args.expect_violations)
+            results = verify._run_fallback(
+                layer_set, negative=args.expect_violations, project_dir=project_dir
+            )
         else:
             # Try kernel first; fall back to Python on kernel absence
-            ok, results = _check_with_kernel(layer_set)
+            ok, results = _check_with_kernel(layer_set, project_dir)
             if not results:
-                results = verify._run_fallback(layer_set, negative=False)
+                results = verify._run_fallback(
+                    layer_set, negative=False, project_dir=project_dir
+                )
 
         passed = _print_result(target_norm, results, args.expect_violations)
         if args.verbose:
