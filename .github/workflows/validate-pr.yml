@@ -26,12 +26,6 @@ on:
   pull_request:
     branches:
       - main
-    paths:
-      - "**.sysml"
-      - "sysml-project.yml"
-      - "scripts/**"
-      - "tests/**"
-      - "requirements-ci.txt"
 
 jobs:
   # ---------------------------------------------------------------------------
