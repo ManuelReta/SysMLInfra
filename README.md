@@ -352,11 +352,10 @@ The N=10 sweep covers ±1σ and ±3σ deviations. A proper probabilistic UQ requ
 
 
 
-
-
-
-
-
-
-
+## Dependency manager
+Use uv as dependency manager. 
+```
+uv tool install pre-commit --with pre-commit-uv
+uv run pre-commit install
 uv run python /mnt/c/Users/SINKAA/Desktop/code/reactor_sys/jupyer-kernel/install.py --sys-prefix
+```
