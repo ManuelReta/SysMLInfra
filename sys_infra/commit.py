@@ -1,15 +1,3 @@
-#!/usr/bin/env python3
-"""
-commit.py — POST all .sysml layers to the SysML v2 Pilot API.
-
-Usage:
-    python commit.py
-    python commit.py http://host:9000
-
-Env:
-    SYSML_API_BASE  (optional override)
-"""
-
 import os
 import sys
 import json
@@ -107,7 +95,7 @@ def parse_layers(project_dir: Path) -> list[str]:
     return layers
 
 
-def post_commit(project_id: str, filepath: Path, description: str):
+def post_commit(project_id: str, filepath: Path, description: str) -> str:
     with open(filepath) as f:
         content = f.read()
 
@@ -137,7 +125,7 @@ def post_commit(project_id: str, filepath: Path, description: str):
     return r.json().get("@id", "")
 
 
-def commit_layers(project_id: str, project_dir: Path):
+def commit_layers(project_id: str, project_dir: Path) -> None:
     print("\nCommitting SysML layers...")
 
     layers = parse_layers(project_dir=project_dir)
@@ -172,10 +160,7 @@ def commit_layers(project_id: str, project_dir: Path):
     print("  Commit IDs saved to lib/commit-ids.json")
 
 
-# ------------------------------------------------------------------------------
-# Main
-# ------------------------------------------------------------------------------
-def main():
+def main() -> None:
     project_dir = Path("/mnt/c/Users/SINKAA/Desktop/code/mons_wp1/SysMLInfra/examples/bilgepump")
     check_api_server()
     project_id = create_project(project_dir=project_dir)
