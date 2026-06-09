@@ -22,4 +22,5 @@ repos:
   hooks:
     - id: mypy
       name: "Mypy - check type hints"
+      entry: uv run mypy
       args: [--strict, --ignore-missing-imports]

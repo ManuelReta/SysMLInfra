@@ -9,6 +9,7 @@ dependencies = [
     "jupyter-client>=8.9.0",
     "jupyter-console>=6.6.3",
     "requests>=2.33.1",
+
 ]
 
 [dependency-groups]
@@ -18,6 +19,7 @@ dev = [
     "pytest>=9.0.2",
     "ruff>=0.14.14",
     "pytest-cov>=7.0.0",
+    "types-requests>=2.33.0.20260518",
 ]
 
 [build-system]

@@ -1,15 +1,19 @@
 import os
 import sys
 import json
+from typing import Any
 import requests
 from pathlib import Path
+
 
 def get_host() -> str:
     return "http://localhost:9000"
 
+
 API_BASE = get_host()
 SCRIPT_DIR = Path(os.path.dirname(os.path.abspath(__file__)))
 HEADERS = {"Accept": "application/json"}
+
 
 def check_api_server() -> None:
     print(f"Checking API server at {API_BASE}...")
@@ -43,14 +47,14 @@ def read_project_manifest(project_dir: Path) -> tuple[str, str]:
     return name, description
 
 
-def create_project(project_dir: Path) -> str:
+def create_project(project_dir: Path) -> Any:
     print("\nCreating project...")
     name, description = read_project_manifest(project_dir=project_dir)
 
     r = requests.post(
         f"{API_BASE}/projects",
         json={"name": name, "description": description},
-        timeout=10
+        timeout=10,
     )
     r.raise_for_status()
 
@@ -87,7 +91,9 @@ def parse_layers(project_dir: Path) -> list[str]:
                     in_layers = True
                 elif in_layers and s.startswith("- "):
                     layers.append(s[2:].strip())
-                elif in_layers and s and not s.startswith("- ") and not s.startswith("#"):
+                elif (
+                    in_layers and s and not s.startswith("- ") and not s.startswith("#")
+                ):
                     in_layers = False
     except FileNotFoundError:
         layers = []
@@ -95,24 +101,17 @@ def parse_layers(project_dir: Path) -> list[str]:
     return layers
 
 
-def post_commit(project_id: str, filepath: Path, description: str) -> str:
+def post_commit(project_id: str, filepath: Path, description: str) -> Any:
     with open(filepath) as f:
         content = f.read()
 
     payload = {
         "description": description,
-        "changes": [
-            {
-                "@type": "TextualRepresentation",
-                "body": content
-            }
-        ]
+        "changes": [{"@type": "TextualRepresentation", "body": content}],
     }
 
     r = requests.post(
-        f"{API_BASE}/projects/{project_id}/commits",
-        json=payload,
-        timeout=30
+        f"{API_BASE}/projects/{project_id}/commits", json=payload, timeout=30
     )
 
     try:
@@ -137,11 +136,7 @@ def commit_layers(project_id: str, project_dir: Path) -> None:
 
         print(f"[{i}/{len(layers)}] {layer_file}")
 
-        commit_id = post_commit(
-            project_id,
-            filepath,
-            f"Layer: {layer_file}"
-        )
+        commit_id = post_commit(project_id, filepath, f"Layer: {layer_file}")
 
         commits[key] = commit_id
         print(f"       Commit ID: {commit_id}")
@@ -151,31 +146,29 @@ def commit_layers(project_id: str, project_dir: Path) -> None:
     lib_dir.mkdir(exist_ok=True)
 
     with open(lib_dir / "commit-ids.json", "w") as f:
-        json.dump(
-            {"project_id": project_id, "commits": commits},
-            f,
-            indent=2
-        )
+        json.dump({"project_id": project_id, "commits": commits}, f, indent=2)
 
     print("  Commit IDs saved to lib/commit-ids.json")
 
 
-def delete_project_by_name(project_name: str):
+def delete_project_by_name(project_name: str) -> None:
     project = get_project_by_name(project_name=project_name)
     if project:
         delete_project(project_id=project["@id"])
     else:
         print(f"Project with name '{project_name}' not found. Cannot delete.")
 
-def delete_project(project_id: str):
-    API_BASE = get_host() 
+
+def delete_project(project_id: str) -> None:
+    API_BASE = get_host()
     r = requests.delete(f"{API_BASE}/projects/{project_id}")
     if r.status_code == 204:
         print(f"Project {project_id} deleted successfully.")
     else:
         print(f"Failed to delete project {project_id}: HTTP {r.status_code} - {r.text}")
 
-def get_project_ids() -> list:
+
+def get_project_ids() -> Any:
     host = get_host()
 
     projects_url = f"{host}/projects"
@@ -188,9 +181,9 @@ def get_project_ids() -> list:
     else:
         print(f"Failed to fetch projects: {response.status_code} - {response.text}")
         return []
-    
 
-def get_branches_in_project(project_id: str) -> list:
+
+def get_branches_in_project(project_id: str) -> Any:
     host = get_host()
     url = f"{host}/projects/{project_id}/branches"
 
@@ -201,20 +194,20 @@ def get_branches_in_project(project_id: str) -> list:
     return branches
 
 
-def get_head_branch(project_id: str) -> dict:
+def get_head_branch(project_id: str) -> Any:
     branches = get_branches_in_project(project_id)
 
     # Look for main branch in all returned branches.
     main_branch = next(b for b in branches if b.get("name") in ("main", "master"))
     return main_branch
 
-def get_head_commit(project_id: str) -> str:
+
+def get_head_commit(project_id: str) -> Any:
     branch = get_head_branch(project_id)
     return branch["head"]["@id"]
 
 
-
-def get_project_by_name(project_name: str):
+def get_project_by_name(project_name: str) -> Any:
     """Fetches the project with the given name and returns its details, including ID."""
 
     projects = get_project_ids()
@@ -226,19 +219,28 @@ def get_project_by_name(project_name: str):
     return target_project
 
 
-
-def get_project_info(project_name: str): 
+def get_project_info(
+    project_name: str,
+) -> tuple[Any, Any, Any]:
     project = get_project_by_name(project_name=project_name)
     head_branch = get_head_branch(project["@id"])
-    try: 
-        branch_id, commit_id = head_branch["@id"], head_branch["referencedCommit"]["@id"]
-    except Exception as e:
+    try:
+        branch_id, commit_id = (
+            head_branch["@id"],
+            head_branch["referencedCommit"]["@id"],
+        )
+    except Exception:
         branch_id, commit_id = None, None
-    print(f"Project name: {project_name}, Project ID: {project['@id']}, Branch ID: {branch_id}, Commit ID: {commit_id}")
+    print(
+        f"Project name: {project_name}, Project ID: {project['@id']}, Branch ID: {branch_id}, Commit ID: {commit_id}"
+    )
     return project, branch_id, commit_id
 
+
 def main() -> None:
-    project_dir = Path("/mnt/c/Users/SINKAA/Desktop/code/mons_wp1/SysMLInfra/examples/bilgepump")
+    project_dir = Path(
+        "/mnt/c/Users/SINKAA/Desktop/code/mons_wp1/SysMLInfra/examples/bilgepump"
+    )
     check_api_server()
     project_id = create_project(project_dir=project_dir)
     commit_layers(project_id=project_id, project_dir=project_dir)
