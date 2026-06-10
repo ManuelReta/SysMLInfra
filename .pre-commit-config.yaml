@@ -23,4 +23,4 @@ repos:
     - id: mypy
       name: "Mypy - check type hints"
       entry: uv run mypy
-      args: [ --ignore-missing-imports]
+      args: [ --ignore-missing-imports, --active]
