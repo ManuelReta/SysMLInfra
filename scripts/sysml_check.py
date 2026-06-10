@@ -141,9 +141,13 @@ def _check_with_kernel(
         )
         print("\033[33m" + "═" * 66 + "\033[0m")
         return False, []
-    all_ok, _ = verify._run_kernel(layer_set, kernel_name, project_dir)
+    all_ok, _, _ = verify._run_kernel(
+        layer_paths=layer_set, kernel_name=kernel_name, project_dir=project_dir
+    )
     # Also run fallback to extract per-requirement results for printing
-    results = verify._run_fallback(layer_set, negative=False, project_dir=project_dir)
+    results = verify._run_fallback(
+        layer_paths=layer_set, negative=False, project_dir=project_dir
+    )
     return all_ok, results
 
 

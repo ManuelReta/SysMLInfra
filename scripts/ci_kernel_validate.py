@@ -175,16 +175,16 @@ def validate(name: str, layers: list) -> None:
     except Exception:
         installed_kernels = {}
 
-    kernel_name = None
+    kernel_name: str | None = None
     # Prefer exact matches: 'sysml2' first, then 'sysml', then any sysml* key
     for candidate in ("sysml2", "sysml"):
         if candidate in installed_kernels:
             kernel_name = candidate
             break
     if kernel_name is None:
-        for k in installed_kernels:
-            if "sysml" in k.lower():
-                kernel_name = k
+        for kernel in installed_kernels:
+            if "sysml" in kernel.lower():
+                kernel_name = kernel
                 break
     if kernel_name is None:
         print(

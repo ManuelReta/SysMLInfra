@@ -8,10 +8,7 @@ No SysML kernel required.
 
 import pytest
 
-from fault_tracer import FaultTracer, build_bind_index
-
-
-# ── build_bind_index ──────────────────────────────────────────────────────────
+from sys_infra.fault_tracer import FaultTracer, build_bind_index
 
 
 class TestBuildBindIndex:
