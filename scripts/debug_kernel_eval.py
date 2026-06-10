@@ -31,13 +31,14 @@ import json
 import os
 import re
 import sys
+from sys_infra.environment import REPO_ROOT
 
 # ── repo root ─────────────────────────────────────────────────────────────────
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MANIFEST = os.path.join(REPO_ROOT, "sysml-project.yml")
+# REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# MANIFEST = os.path.join(REPO_ROOT, "sysml-project.yml")
 
 # put verify.py helpers on path
-sys.path.insert(0, REPO_ROOT)
+# sys.path.insert(0, REPO_ROOT)
 import sys_infra.verify  # noqa: E402  (after path manipulation)
 
 
@@ -102,8 +103,8 @@ def _compact_expr(expr: str) -> str:
     return s
 
 
-def _read_manifest_layers() -> list[str]:
-    _, all_layers, validation_layers = sys_infra.verify._read_manifest(MANIFEST)
+def _read_manifest_layers(manifest_path: str) -> list[str]:
+    _, all_layers, validation_layers = sys_infra.verify._read_manifest(manifest_path)
     return validation_layers if validation_layers else all_layers
 
 
@@ -174,6 +175,8 @@ def main() -> None:
 
 def run_eval(args) -> None:
     project_dir = args.project_dir
+    manifest_path = os.path.join(project_dir, "sysml-project.yml")
+
     # ── Kernel discovery ──────────────────────────────────────────────────────
     kernel_name = _discover_kernel()
     if kernel_name is None:
@@ -186,7 +189,7 @@ def run_eval(args) -> None:
     )
 
     # ── Layers ────────────────────────────────────────────────────────────────
-    layer_paths = _read_manifest_layers()
+    layer_paths = _read_manifest_layers(manifest_path=manifest_path)
     print(f"\n  {bold('Layers to load into kernel:')}")
     for i, lp in enumerate(layer_paths, 1):
         print(f"    [{i:2}] {lp}")

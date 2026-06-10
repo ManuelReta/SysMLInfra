@@ -41,14 +41,8 @@ import os
 import re
 import sys
 from pathlib import Path
-from dotenv import load_dotenv
+from sys_infra.environment import LIB_DIR, REPO_ROOT
 from sys_infra.utils import _USE_COLOR, bold, cyan, dim, green, red, yellow
-
-load_dotenv()
-
-
-REPO_ROOT = Path(os.getenv("REPO_ROOT", "."))
-LIB_DIR = REPO_ROOT / "lib"
 
 
 # ── Manifest reader (same logic as ci_kernel_validate.py) ────────────────────

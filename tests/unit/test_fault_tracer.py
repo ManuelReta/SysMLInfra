@@ -56,28 +56,32 @@ class TestBuildBindIndex:
 class TestFaultTracerLoad:
     """Tests that FaultTracer loads successfully against the real model."""
 
-    def test_load_without_errors(self, repo_root, manifest_path):
+    def test_load_without_errors(self, bilgepump_dir, manifest_path):
         import sys_infra.verify as verify
 
         _, layers, _ = verify._read_manifest(manifest_path)
-        tracer = FaultTracer(str(repo_root), layers, negative=False)
+        tracer = FaultTracer(str(bilgepump_dir), layers, negative=False)
         tracer.load()  # must not raise
         assert tracer._bind_index is not None
 
-    def test_trace_violations_empty_for_no_violations(self, repo_root, manifest_path):
+    def test_trace_violations_empty_for_no_violations(
+        self, bilgepump_dir, manifest_path
+    ):
         import sys_infra.verify as verify
 
         _, layers, _ = verify._read_manifest(manifest_path)
-        tracer = FaultTracer(str(repo_root), layers, negative=False)
+        tracer = FaultTracer(str(bilgepump_dir), layers, negative=False)
         tracer.load()
         traces = tracer.trace_violations([])
         assert traces == []
 
-    def test_trace_returns_results_for_known_violation(self, repo_root, manifest_path):
+    def test_trace_returns_results_for_known_violation(
+        self, bilgepump_dir, manifest_path
+    ):
         import sys_infra.verify as verify
 
         _, layers, _ = verify._read_manifest(manifest_path)
-        tracer = FaultTracer(str(repo_root), layers, negative=False)
+        tracer = FaultTracer(str(bilgepump_dir), layers, negative=False)
         tracer.load()
         # DischargeCapacityRequirement would be violated with pumpA out
         traces = tracer.trace_violations(["DischargeCapacityRequirement"])

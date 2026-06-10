@@ -11,16 +11,16 @@ Tests:
 """
 
 import pytest
-
-import sys_infra.verify as verify
-
+import json
+from sys_infra.verify import _read_manifest, _run_fallback, _save_results
+from sys_infra.environment import EXAMPLES_BILGEPUMP_DIR
 
 pytestmark = pytest.mark.model
 
 
 @pytest.fixture(scope="module")
 def manifest(manifest_path):
-    name, layers, validation_layers = verify._read_manifest(manifest_path)
+    name, layers, validation_layers = _read_manifest(manifest_path)
     return name, layers, validation_layers
 
 
@@ -28,18 +28,16 @@ def manifest(manifest_path):
 def positive_results(manifest):
     _, layers, validation_layers = manifest
     layer_set = validation_layers if validation_layers else layers
-    return verify._run_fallback(layer_set, negative=False)
+    return _run_fallback(layer_set, negative=False, project_dir=EXAMPLES_BILGEPUMP_DIR)
 
 
 @pytest.fixture(scope="module")
 def negative_results(manifest):
     _, layers, _ = manifest
-    return verify._run_fallback(layers, negative=True)
+    return _run_fallback(layers, negative=True, project_dir=EXAMPLES_BILGEPUMP_DIR)
 
 
 # ── Positive test (nominal values) ────────────────────────────────────────────
-
-
 class TestPositiveCase:
     """All validation_layers requirements must be SATISFIED at nominal values."""
 
@@ -69,24 +67,20 @@ class TestPositiveCase:
                 f"'{req}' expected SATISFIED; got {by_name[req]['satisfied']}"
             )
 
-    def test_all_satisfied_flag_is_true(self, positive_results, tmp_path):
+    def test_all_satisfied_flag_is_true(self, positive_results, tmp_path, monkeypatch):
         """Regression: all_satisfied must be True when no requirement is False."""
-        import json
 
-        original_lib = verify.LIB_DIR
-        verify.LIB_DIR = str(tmp_path)
-        try:
-            verify._save_results(positive_results, "positive", "python-eval")
-        finally:
-            verify.LIB_DIR = original_lib
+        monkeypatch.setattr("sys_infra.verify.LIB_DIR", str(tmp_path))
+
+        _save_results(positive_results, "positive", "python-eval")
+
         with open(tmp_path / "verification-results.json") as f:
             data = json.load(f)
+
         assert data["all_satisfied"] is True
 
 
 # ── Negative test (pump A failure) ────────────────────────────────────────────
-
-
 class TestNegativeCase:
     """With pumpA.flowRate=0, discharge requirements should be violated."""
 
