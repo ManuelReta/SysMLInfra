@@ -303,7 +303,7 @@ class OPCUASensorAdapter(SensorAdapter):
 
     def read(self) -> dict[str, Any]:
         try:
-            from opcua import Client  # noqa: PLC0415
+            from opcua import Client  # type: ignore[import] # noqa: PLC0415
         except ImportError:
             raise RuntimeError(
                 "opcua is required for the OPC-UA adapter: pip install opcua"
