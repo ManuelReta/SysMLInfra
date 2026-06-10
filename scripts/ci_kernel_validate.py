@@ -295,6 +295,7 @@ def validate(name: str, layers: list, project_dir: str) -> None:
 # Entry point
 # ---------------------------------------------------------------------------
 def run_validate(project_dir, dry_run=False, all_layers=False) -> None:
+    print(f"Running SysML v2 kernel validation for project at: {project_dir}\n")
     manifest_path = os.path.join(project_dir, "sysml-project.yml")
     if not os.path.exists(project_dir):
         print(
@@ -305,7 +306,6 @@ def run_validate(project_dir, dry_run=False, all_layers=False) -> None:
         sys.exit(1)
 
     name, layers, validation_layers = read_manifest(path=manifest_path)
-    print("vnrklvre")
     if not layers:
         print("ERROR: sysml-project.yml contains no 'layers' entries.", file=sys.stderr)
         sys.exit(1)
@@ -314,7 +314,6 @@ def run_validate(project_dir, dry_run=False, all_layers=False) -> None:
     # --dry-run always uses the full 'layers' list (checks all files exist).
     # --all-layers overrides validation_layers (useful for local debugging).
     # Default: use validation_layers if present, else fall back to layers.
-    print("vnrklvre")
     if dry_run:
         dry_runner(name, layers, validation_layers)
         print("after dry")
