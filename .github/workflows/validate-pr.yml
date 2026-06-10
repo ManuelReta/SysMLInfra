@@ -82,7 +82,7 @@ jobs:
         run: uv sync --locked --all-extras --dev
 
       - name: Verify manifest and layer files (dry run)
-        run: uv run python scripts/ci_kernel_validate.py --dry-run
+        run: uv run python -m sys_infra.entry validate --dry-run
 
   # ---------------------------------------------------------------------------
   # Job 2: validate-sysml — full semantic validation via SysML v2 kernel.
