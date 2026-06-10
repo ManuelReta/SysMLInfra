@@ -82,7 +82,6 @@ Configuration file schema (sensors.json):
 from __future__ import annotations
 
 import abc
-import argparse
 import datetime
 import json
 import sys
@@ -349,54 +348,14 @@ def make_adapter(config: dict) -> SensorAdapter:
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        prog="sensor_adapter.py",
-        description=__doc__,
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    parser.add_argument(
-        "--config",
-        metavar="FILE",
-        help="Path to sensor configuration JSON (see module docstring for schema).",
-    )
-    parser.add_argument(
-        "--demo",
-        action="store_true",
-        help="Run mock adapter in demo mode — no hardware required.",
-    )
-    parser.add_argument(
-        "--once",
-        action="store_true",
-        help="Take a single snapshot and exit (default: continuous loop).",
-    )
-    parser.add_argument(
-        "--interval",
-        type=float,
-        metavar="SECONDS",
-        default=5.0,
-        help="Polling interval in seconds for continuous mode (default: 5).",
-    )
-    parser.add_argument(
-        "--output",
-        choices=["json", "pretty"],
-        default="pretty",
-        help="Output format: json (one JSON object per line) or pretty (default).",
-    )
-    args = parser.parse_args()
-    run_sensor(args)
-
-
-def run_sensor(args) -> None:
+def run_sensor(demo, config, once, interval, output) -> None:
     # ── Build config ──────────────────────────────────────────────────────────
-    if args.demo:
+    if demo:
         config = {"adapter": "mock", "system": "<SystemType>"}
-    elif args.config:
-        config_path = Path(args.config)
+    elif config:
+        config_path = Path(config)
         if not config_path.exists():
-            print(f"ERROR: config file not found: {args.config}", file=sys.stderr)
+            print(f"ERROR: config file not found: {config}", file=sys.stderr)
             sys.exit(2)
         with open(config_path) as f:
             config = json.load(f)
@@ -404,10 +363,10 @@ def run_sensor(args) -> None:
         raise ValueError("Either --demo or --config FILE is required.")
 
     adapter = make_adapter(config)
-    interval = config.get("interval_s", args.interval)
+    interval = config.get("interval_s", interval)
 
     def _emit(snap: dict) -> None:
-        if args.output == "json":
+        if output == "json":
             print(json.dumps(snap))
         else:
             ts = snap["timestamp"]
@@ -420,13 +379,13 @@ def run_sensor(args) -> None:
                 print(f"  {k:<44}  {v}")
             print()
 
-    if args.once or args.demo:
+    if once or demo:
         # Demo: cycle through all mock scenarios once
         steps = len(adapter._scenarios) if isinstance(adapter, MockSensorAdapter) else 1
-        for _ in range(steps if args.demo else 1):
+        for _ in range(steps if demo else 1):
             snap = adapter.snapshot()
             _emit(snap)
-            if args.demo and steps > 1:
+            if demo and steps > 1:
                 time.sleep(0.5)
     else:
         # Continuous loop
@@ -441,4 +400,4 @@ def run_sensor(args) -> None:
 
 
 if __name__ == "__main__":
-    main()
+    run_sensor(demo=True, config=None, once=False, interval=5, output="pretty")

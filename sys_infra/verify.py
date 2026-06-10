@@ -875,11 +875,36 @@ def main() -> None:
         "Takes a single snapshot then runs verification.",
     )
     args = parser.parse_args()
-    run_verify(args)
+    run_verify(
+        project_dir=Path(args.project_dir),
+        dry_run=args.dry_run,
+        negative=args.negative,
+        all=args.all,
+        fallback=args.fallback,
+        require_kernel=args.require_kernel,
+        visual=args.visual,
+        publish=args.publish,
+        z3=args.z3,
+        live=args.live,
+        verbose=args.verbose,
+    )
 
 
-def run_verify(args) -> None:
-    project_dir = Path(args.project_dir)
+# def run_verify(args) -> None:
+def run_verify(
+    project_dir,
+    dry_run,
+    negative,
+    all,
+    fallback,
+    require_kernel,
+    visual,
+    publish,
+    z3,
+    live,
+    verbose,
+) -> None:
+    # project_dir = Path(args.project_dir)
     print("Using project: ", project_dir)
 
     if not project_dir.exists():
@@ -899,12 +924,12 @@ def run_verify(args) -> None:
         sys.exit(2)
 
     # Dry-run: always uses full layers list
-    if args.dry_run:
+    if dry_run:
         _dry_run(project_name, all_layers, validation_layers)
 
     # ── Live sensor mode ───────────────────────────────────────────────────────
     _live_bind_values: dict | None = None
-    if args.live:
+    if live:
         import importlib.util as _ilu
         import json as _json
 
@@ -919,10 +944,10 @@ def run_verify(args) -> None:
         _sa_mod = _ilu.module_from_spec(spec)
         spec.loader.exec_module(_sa_mod)
 
-        if not os.path.exists(args.live):
-            raise FileNotFoundError(f"Live config file not found: {args.live}")
+        if not os.path.exists(live):
+            raise FileNotFoundError(f"Live config file not found: {live}")
 
-        with open(args.live) as _fh:
+        with open(live) as _fh:
             _live_config = _json.load(_fh)
         _adapter = _sa_mod.make_adapter(_live_config)
         _snap = _adapter.snapshot()
@@ -933,23 +958,21 @@ def run_verify(args) -> None:
         print(f"  {len(_live_bind_values)} bind values loaded from sensor adapter")
 
     # Select the working layer set
-    if args.all:
+    if all:
         layer_set = all_layers
         mode_label = "all-layers (includes negative tests)"
     else:
         layer_set = (
-            validation_layers
-            if (validation_layers and not args.negative)
-            else all_layers
+            validation_layers if (validation_layers and not negative) else all_layers
         )
         mode_label = (
-            "negative test" if args.negative else "positive test (validation_layers)"
+            "negative test" if negative else "positive test (validation_layers)"
         )
 
     # ── Engine selection ───────────────────────────────────────────────────────
-    use_kernel = not args.fallback
+    use_kernel = not fallback
     kernel_name: str | None = None
-    if args.fallback:
+    if fallback:
         print()
         print(yellow("═" * 66))
         print(yellow("  ⚠  WARNING: --fallback active — Python regex/eval ONLY"))
@@ -961,7 +984,7 @@ def run_verify(args) -> None:
     if use_kernel:
         kernel_name = _discover_sysml_kernel()
         if kernel_name is None:
-            if getattr(args, "require_kernel", False):
+            if require_kernel is False:
                 print()
                 print(red("═" * 66))
                 print(red("  ERROR: SysML v2 kernel NOT FOUND"))
@@ -1005,7 +1028,7 @@ def run_verify(args) -> None:
         print(
             f"\n  {dim('Starting SysML v2 kernel — this takes ~10 s on first run...')}"
         )
-        eval_cells = _build_kernel_eval_cells(layer_set, args.negative, project_dir)
+        eval_cells = _build_kernel_eval_cells(layer_set, negative, project_dir)
         all_ok, cell_results, eval_results = _run_kernel(
             layer_set, kernel_name, project_dir, eval_cells
         )
@@ -1023,7 +1046,7 @@ def run_verify(args) -> None:
                 print(
                     f"\n  {yellow(f'⚠  {len(unknown_reqs)} requirement(s) returned UNKNOWN from kernel — using Python fallback for those.')}"
                 )
-                fb_results = _run_fallback(layer_set, args.negative, project_dir)
+                fb_results = _run_fallback(layer_set, negative, project_dir)
                 fb_map = {r["requirement"]: r for r in fb_results}
                 for r in eval_results:
                     if r["satisfied"] is None and r["requirement"] in fb_map:
@@ -1036,24 +1059,24 @@ def run_verify(args) -> None:
             print(
                 f"\n  {yellow('⚠  No %eval cells built — kernel only checked syntax.')}"
             )
-            results = _run_fallback(layer_set, args.negative, project_dir, args.verbose)
+            results = _run_fallback(layer_set, negative, project_dir, verbose)
     else:
         # ── Fallback path ──────────────────────────────────────────────────────
-        results = _run_fallback(layer_set, args.negative, project_dir, args.verbose)
+        results = _run_fallback(layer_set, negative, project_dir, verbose)
 
     # ── Print results ──────────────────────────────────────────────────────────
-    all_pass, violated = _print_results(results, show_expr=args.verbose)
+    all_pass, violated = _print_results(results, show_expr=verbose)
 
     # ── Fault traces for violations ────────────────────────────────────────────
     if violated:
-        _print_fault_traces(violated, all_layers, args.negative)
+        _print_fault_traces(violated, all_layers, negative)
 
     # ── Persist results ────────────────────────────────────────────────────────
     engine_str = f"kernel:{kernel_name}" if use_kernel else "python-eval"
-    _save_results(results, "negative" if args.negative else "positive", engine_str)
+    _save_results(results, "negative" if negative else "positive", engine_str)
 
     # ── Visual diagrams ────────────────────────────────────────────────────────
-    if args.visual:
+    if visual:
         print(f"\n  {bold('Generating diagrams...')}")
         try:
             from scripts.diagram_gen import generate_all  # noqa: PLC0415
@@ -1068,13 +1091,13 @@ def run_verify(args) -> None:
             print(yellow(f"  WARNING: Diagram generation failed: {exc}"))
 
     # ── Z3 formal analysis ─────────────────────────────────────────────────────
-    if args.z3:
+    if z3:
         _run_z3_analysis(
-            bind_values=_live_bind_values, verbose=args.verbose, MANIFEST=MANIFEST
+            bind_values=_live_bind_values, verbose=verbose, MANIFEST=MANIFEST
         )
 
     # ── Optional publish ───────────────────────────────────────────────────────
-    if args.publish:
+    if publish:
         _publish(all_layers, project_name)
 
     sys.exit(0 if all_pass else 1)

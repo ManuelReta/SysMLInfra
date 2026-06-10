@@ -26,7 +26,6 @@ Usage:
 
 from __future__ import annotations
 
-import argparse
 import json
 import os
 import re
@@ -155,26 +154,7 @@ def _format_cell_output(outputs: list[dict]) -> tuple[str, str]:
     return raw, "?? (unparseable)"
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
-    )
-    parser.add_argument(
-        "--negative",
-        action="store_true",
-        help="Inject pumpA.flowRate = 0.0 (pump A failure)",
-    )
-    parser.add_argument(
-        "--raw",
-        action="store_true",
-        help="Dump raw cell output JSON for each %eval cell",
-    )
-    args = parser.parse_args()
-    run_eval(args)
-
-
-def run_eval(args) -> None:
-    project_dir = args.project_dir
+def run_eval(project_dir, negative=False, raw=False) -> None:
     manifest_path = os.path.join(project_dir, "sysml-project.yml")
 
     # ── Kernel discovery ──────────────────────────────────────────────────────
@@ -185,7 +165,7 @@ def run_eval(args) -> None:
         sys.exit(2)
     print(f"\n  Kernel : {cyan(kernel_name)}")
     print(
-        f"  Mode   : {yellow('negative (pump A failure)' if args.negative else 'positive')}"
+        f"  Mode   : {yellow('negative (pump A failure)' if negative else 'positive')}"
     )
 
     # ── Layers ────────────────────────────────────────────────────────────────
@@ -196,7 +176,7 @@ def run_eval(args) -> None:
 
     # ── Build %eval cells (expression substitution in Python) ────────────────
     eval_cells = sys_infra.verify._build_kernel_eval_cells(
-        layer_paths, args.negative, project_dir
+        layer_paths, negative, project_dir
     )
 
     _banner("Substituted expressions (spaces stripped for single-token %eval)")
@@ -242,7 +222,7 @@ def run_eval(args) -> None:
     for lp in layer_paths:
         nb.cells.append(
             nbformat.v4.new_code_cell(
-                sys_infra.verify._read(os.path.join(REPO_ROOT, lp))
+                sys_infra.verify._read(os.path.join(project_dir, lp))
             )
         )
 
@@ -261,7 +241,7 @@ def run_eval(args) -> None:
         nb,
         timeout=300,
         kernel_name=kernel_name,
-        resources={"metadata": {"path": REPO_ROOT}},
+        resources={"metadata": {"path": project_dir}},
     )
 
     # ── Execute (suppress JAR boot noise on fd 1/2) ───────────────────────────
@@ -364,7 +344,7 @@ def run_eval(args) -> None:
             print(f"  Verdict     : {yellow('UNKNOWN ?')}")
             n_unknown += 1
 
-        if args.raw:
+        if raw:
             print("  Raw outputs JSON:")
             print(f"    {json.dumps(outputs, indent=2)[:600]}")
 
@@ -388,4 +368,8 @@ def run_eval(args) -> None:
 
 
 if __name__ == "__main__":
-    main()
+    run_eval(
+        project_dir=os.path.join(REPO_ROOT, "examples/pump-system"),
+        negative=False,
+        raw=False,
+    )

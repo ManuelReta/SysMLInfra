@@ -39,7 +39,6 @@ Adapting for a new project:
     This script is generic and requires no modification.
 """
 
-import argparse
 import os
 import sys
 
@@ -97,7 +96,7 @@ def read_manifest(path: str) -> tuple:
 # ---------------------------------------------------------------------------
 
 
-def dry_run(name: str, layers: list, validation_layers: list | None = None) -> None:
+def dry_runner(name: str, layers: list, validation_layers: list | None = None) -> None:
     print(f"DRY RUN  —  project: {name}")
     vl_set = set(validation_layers) if validation_layers else set(layers)
     print(f"  {len(layers)} layer(s) in manifest order")
@@ -133,7 +132,7 @@ def dry_run(name: str, layers: list, validation_layers: list | None = None) -> N
 # ---------------------------------------------------------------------------
 
 
-def validate(name: str, layers: list) -> None:
+def validate(name: str, layers: list, project_dir: str) -> None:
     # Import here so --dry-run works even without nbformat/nbclient installed.
     try:
         import nbformat  # noqa: PLC0415
@@ -151,7 +150,7 @@ def validate(name: str, layers: list) -> None:
         sys.exit(1)
 
     # Validate all layer files exist before starting the kernel
-    missing = [f for f in layers if not os.path.exists(os.path.join(REPO_ROOT, f))]
+    missing = [f for f in layers if not os.path.exists(os.path.join(project_dir, f))]
     if missing:
         print(f"ERROR: layer file(s) not found: {missing}", file=sys.stderr)
         sys.exit(1)
@@ -204,7 +203,7 @@ def validate(name: str, layers: list) -> None:
         "name": kernel_name,
     }
     for layer_file in layers:
-        with open(os.path.join(REPO_ROOT, layer_file)) as fh:
+        with open(os.path.join(project_dir, layer_file)) as fh:
             source = fh.read()
         nb.cells.append(nbformat.v4.new_code_cell(source))
 
@@ -226,7 +225,7 @@ def validate(name: str, layers: list) -> None:
         nb,
         timeout=300,
         kernel_name=kernel_name,
-        resources={"metadata": {"path": REPO_ROOT}},
+        resources={"metadata": {"path": project_dir}},
     )
 
     print("Starting SysML v2 kernel...")
@@ -295,48 +294,18 @@ def validate(name: str, layers: list) -> None:
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Headless SysML v2 model validator — reads sysml-project.yml",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__,
-    )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Verify all layer files exist and print the execution plan; do not start the kernel",
-    )
-    parser.add_argument(
-        "--all-layers",
-        action="store_true",
-        help=(
-            "Run the kernel against ALL layers (ignores validation_layers). "
-            "Expect failures from FMEA/UQ negative-test analysis defs."
-        ),
-    )
-    parser.add_argument(
-        "--manifest",
-        default=MANIFEST,
-        metavar="PATH",
-        help=f"Path to sysml-project.yml (default: {MANIFEST})",
-    )
-    args = parser.parse_args()
-    run_validate(args)
-
-
-def run_validate(args) -> None:
-    if not os.path.exists(args.manifest):
+def run_validate(project_dir, dry_run=False, all_layers=False) -> None:
+    manifest_path = os.path.join(project_dir, "sysml-project.yml")
+    if not os.path.exists(project_dir):
         print(
-            f"ERROR: manifest not found: {args.manifest}\n"
+            f"ERROR: manifest not found: {project_dir}\n"
             "Create sysml-project.yml at the repository root.",
             file=sys.stderr,
         )
         sys.exit(1)
 
-    name, layers, validation_layers = read_manifest(args.manifest)
-
+    name, layers, validation_layers = read_manifest(path=manifest_path)
+    print("vnrklvre")
     if not layers:
         print("ERROR: sysml-project.yml contains no 'layers' entries.", file=sys.stderr)
         sys.exit(1)
@@ -345,14 +314,17 @@ def run_validate(args) -> None:
     # --dry-run always uses the full 'layers' list (checks all files exist).
     # --all-layers overrides validation_layers (useful for local debugging).
     # Default: use validation_layers if present, else fall back to layers.
-    if args.dry_run:
-        dry_run(name, layers, validation_layers)
-    elif args.all_layers:
+    print("vnrklvre")
+    if dry_run:
+        dry_runner(name, layers, validation_layers)
+        print("after dry")
+    elif all_layers:
         print("NOTE: --all-layers set — running kernel on ALL layers.")
         print(
             "      FMEA/UQ negative-test violations are expected and will cause failures.\n"
         )
-        validate(name, layers)
+        validate(name, layers, project_dir)
+        print("after all-layers validate")
     else:
         kernel_layers = validation_layers if validation_layers is not None else layers
         if validation_layers is not None and len(validation_layers) < len(layers):
@@ -366,8 +338,8 @@ def run_validate(args) -> None:
             for e in excluded:
                 print(f"      - {e}")
             print()
-        validate(name, kernel_layers)
+        validate(name, kernel_layers, project_dir)
 
 
 if __name__ == "__main__":
-    main()
+    run_validate(project_dir="fefe", dry_run=False, all_layers=False)

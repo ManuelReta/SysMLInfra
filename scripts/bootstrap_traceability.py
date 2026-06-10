@@ -25,7 +25,6 @@ Usage:
 
 from __future__ import annotations
 
-import argparse
 import json
 import sys
 from datetime import datetime, timezone
@@ -225,28 +224,7 @@ def _update_build_state(build_state_path: Path, verbose: bool) -> None:
         print("  build-state.json → phase6.traceability = 'complete'")
 
 
-# ── Main ──────────────────────────────────────────────────────────────────────
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        prog="bootstrap_traceability.py",
-        description=__doc__,
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Print what would be written without modifying any files.",
-    )
-    parser.add_argument(
-        "--verbose", action="store_true", help="Print each entry as it is parsed."
-    )
-    args = parser.parse_args()
-    run_trace(args)
-
-
-def run_trace(args) -> None:
+def run_trace(verbose, dry_run) -> None:
     print("\nBootstrapping traceability index...")
     print("─" * 60)
 
@@ -259,9 +237,9 @@ def run_trace(args) -> None:
     connections: list[dict] = []
 
     if REQUIREMENTS_JSON.exists():
-        if args.verbose:
+        if verbose:
             print(f"\nParsing {REQUIREMENTS_JSON.relative_to(REPO_ROOT)}")
-        r, c = _parse_requirements(REQUIREMENTS_JSON, args.verbose)
+        r, c = _parse_requirements(REQUIREMENTS_JSON, verbose)
         requirements.extend(r)
         constraint_defs.extend(c)
     else:
@@ -271,9 +249,9 @@ def run_trace(args) -> None:
         )
 
     if COMPONENTS_JSON.exists():
-        if args.verbose:
+        if verbose:
             print(f"\nParsing {COMPONENTS_JSON.relative_to(REPO_ROOT)}")
-        p, po, a = _parse_components(COMPONENTS_JSON, args.verbose)
+        p, po, a = _parse_components(COMPONENTS_JSON, verbose)
         part_defs.extend(p)
         port_defs.extend(po)
         attr_defs.extend(a)
@@ -283,7 +261,7 @@ def run_trace(args) -> None:
             file=sys.stderr,
         )
 
-    connections = _parse_connections(INGESTED_DIR, args.verbose)
+    connections = _parse_connections(INGESTED_DIR, verbose)
 
     # ── Build output ──────────────────────────────────────────────────────────
     # Read existing traceability to preserve any existing analysisDefs/allocations
@@ -332,7 +310,7 @@ def run_trace(args) -> None:
     print(f"  AttributeDefs  : {counts['attributeDefs']}")
     print(f"  Connections    : {counts['connections']}")
 
-    if args.dry_run:
+    if dry_run:
         print("\n[DRY RUN] Would write to:")
         print(f"  {TRACEABILITY.relative_to(REPO_ROOT)}")
         print(f"  {BUILD_STATE.relative_to(REPO_ROOT)} (phase6.traceability=complete)")
@@ -345,10 +323,10 @@ def run_trace(args) -> None:
         json.dump(output, f, indent=2)
     print(f"\n  ✓  Written: {TRACEABILITY.relative_to(REPO_ROOT)}")
 
-    _update_build_state(BUILD_STATE, args.verbose)
+    _update_build_state(BUILD_STATE, verbose)
     print(f"  ✓  Updated: {BUILD_STATE.relative_to(REPO_ROOT)}")
     print()
 
 
 if __name__ == "__main__":
-    main()
+    run_trace(verbose=True, dry_run=False)

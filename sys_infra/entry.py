@@ -93,7 +93,7 @@ def create_parser() -> argparse.ArgumentParser:
     validate.add_argument("--dry-run", action="store_true")
     validate.add_argument("--all-layers", action="store_true")
     validate.add_argument(
-        "--manifest", default=default_project_dir / "sysml-project.yml"
+        "--project-dir", default=default_project_dir, help="Project directory"
     )
 
     # =========================================================
@@ -108,7 +108,9 @@ def create_parser() -> argparse.ArgumentParser:
     # EVAL (your simple script)
     # =========================================================
     eval_cmd = subparsers.add_parser("eval", help="Eval/test mode")
-
+    eval_cmd.add_argument(
+        "--project-dir", default=default_project_dir, help="Project directory"
+    )
     eval_cmd.add_argument("--negative", action="store_true")
     eval_cmd.add_argument("--raw", action="store_true")
 
@@ -118,22 +120,50 @@ def create_parser() -> argparse.ArgumentParser:
 def main() -> None:
     args = create_parser().parse_args()
     if args.command == "check":
-        run_check(args)
+        run_check(
+            project_dir=Path(args.project_dir),
+            targets=args.targets,
+            fallback=args.fallback,
+            expect_violations=args.expect_violations,
+            verbose=args.verbose,
+        )
 
     elif args.command == "verify":
-        run_verify(args)
+        run_verify(
+            project_dir=Path(args.project_dir),
+            dry_run=args.dry_run,
+            negative=args.negative,
+            all=args.all,
+            fallback=args.fallback,
+            require_kernel=args.require_kernel,
+            visual=args.visual,
+            publish=args.publish,
+            z3=args.z3,
+            live=args.live,
+            verbose=args.verbose,
+        )
 
     elif args.command == "sensor":
-        run_sensor(args)
+        run_sensor(
+            demo=args.demo,
+            config=args.config,
+            once=args.once,
+            interval=args.interval,
+            output=args.output,
+        )
 
     elif args.command == "validate":
-        run_validate(args)
+        run_validate(
+            project_dir=args.project_dir,
+            dry_run=args.dry_run,
+            all_layers=args.all_layers,
+        )
 
     elif args.command == "trace":
-        run_trace(args)
+        run_trace(verbose=args.verbose, dry_run=args.dry_run)
 
     elif args.command == "eval":
-        run_eval(args)
+        run_eval(project_dir=args.project_dir, negative=args.negative, raw=args.raw)
     else:
         print(f"Unknown command: {args.command}", file=sys.stderr)
         sys.exit(1)

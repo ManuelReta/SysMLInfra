@@ -34,24 +34,18 @@ Examples:
 
 from __future__ import annotations
 
-import argparse
 import sys
 from pathlib import Path
 import sys_infra.verify as verify
 
-REPO_ROOT = Path(__file__).parent.parent.resolve()
-MANIFEST = REPO_ROOT / "sysml-project.yml"
-
 
 # ── Manifest helpers ──────────────────────────────────────────────────────────
-
-
-def _load_manifest() -> tuple[str, list[str]]:
+def _load_manifest(manifest_path: Path) -> tuple[str, list[str]]:
     """Return (project_name, ordered_layers_list)."""
-    if not MANIFEST.exists():
-        print(f"ERROR: sysml-project.yml not found at {MANIFEST}", file=sys.stderr)
+    if not manifest_path.exists():
+        print(f"ERROR: sysml-project.yml not found at {manifest_path}", file=sys.stderr)
         sys.exit(2)
-    name, layers, _ = verify._read_manifest(str(MANIFEST))
+    name, layers, _ = verify._read_manifest(str(manifest_path))
     if not layers:
         print("ERROR: sysml-project.yml contains no layers entries.", file=sys.stderr)
         sys.exit(2)
@@ -77,7 +71,9 @@ def _prerequisites(target: str, all_layers: list[str]) -> list[str]:
 # ── Output helpers ────────────────────────────────────────────────────────────
 
 
-def _print_result(target: str, results: list[dict], expect_violations: bool) -> bool:
+def _print_result(
+    target: str, results: list[dict], expect_violations: bool, project_dir: Path
+) -> bool:
     """
     Print per-requirement results for one target file.
     Returns True if the run counts as PASS.
@@ -87,7 +83,7 @@ def _print_result(target: str, results: list[dict], expect_violations: bool) -> 
 
     if not results:
         # Layer has no requirement defs (e.g. Library.sysml) — check file exists
-        path = REPO_ROOT / target
+        path = project_dir / target
         if path.exists():
             print(f"  ✓  {target}  (no requirements to evaluate)")
             return True
@@ -119,8 +115,6 @@ def _print_result(target: str, results: list[dict], expect_violations: bool) -> 
 
 
 # ── Kernel check ──────────────────────────────────────────────────────────────
-
-
 def _check_with_kernel(
     layer_set: list[str], project_dir: Path
 ) -> tuple[bool, list[dict]]:
@@ -151,66 +145,29 @@ def _check_with_kernel(
     return all_ok, results
 
 
-# ── Main ──────────────────────────────────────────────────────────────────────
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        prog="sysml_check.py",
-        description=__doc__,
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    parser.add_argument(
-        "--project-dir",
-        default="/mnt/c/Users/SINKAA/Desktop/code/mons_wp1/SysMLInfra/examples/bilgepump",
-        help="Path to the project directory containing sysml-project.yml",
-    )
-    parser.add_argument(
-        "targets",
-        nargs="+",
-        metavar="FILE.sysml",
-        help="One or more .sysml files to check (relative to repo root).",
-    )
-    parser.add_argument(
-        "--fallback",
-        action="store_true",
-        help="Use Python regex/eval only; skip the SysML v2 kernel.",
-    )
-    parser.add_argument(
-        "--expect-violations",
-        action="store_true",
-        help="Negative-test mode: PASS when at least one requirement is VIOLATED.",
-    )
-    parser.add_argument(
-        "--verbose",
-        action="store_true",
-        help="Show constraint expression for each requirement.",
-    )
-    args = parser.parse_args()
-    run_check(args)
-
-
-def run_check(args) -> None:
-    project_dir = Path(args.project_dir)
-    project_name, all_layers = _load_manifest()
+def run_check(project_dir, targets, fallback, expect_violations, verbose) -> None:
+    manifest_path = project_dir / "sysml-project.yml"
+    if not manifest_path.exists():
+        raise FileNotFoundError(f"Manifest not found at {manifest_path}")
+    project_name, all_layers = _load_manifest(manifest_path=manifest_path)
     print(f"\nSysML check — {project_name}")
     print("─" * 50)
 
     overall_pass = True
-    for target in args.targets:
+    for target in targets:
         target_norm = target.replace("\\", "/")
         layer_set = _prerequisites(target_norm, all_layers)
 
         # Verify the target file exists
-        target_path = REPO_ROOT / target_norm
+        target_path = project_dir / target_norm
         if not target_path.exists():
             print(f"  ✗  {target_norm}  — FILE NOT FOUND", file=sys.stderr)
             overall_pass = False
             continue
 
-        if args.fallback or args.expect_violations:
+        if fallback or expect_violations:
             # Python fallback: fast, no kernel startup
-            if args.fallback:
+            if fallback:
                 print()
                 print("\033[33m" + "═" * 66 + "\033[0m")
                 print(
@@ -223,7 +180,7 @@ def run_check(args) -> None:
                 )
                 print("\033[33m" + "═" * 66 + "\033[0m")
             results = verify._run_fallback(
-                layer_set, negative=args.expect_violations, project_dir=project_dir
+                layer_set, negative=expect_violations, project_dir=project_dir
             )
         else:
             # Try kernel first; fall back to Python on kernel absence
@@ -233,8 +190,13 @@ def run_check(args) -> None:
                     layer_set, negative=False, project_dir=project_dir
                 )
 
-        passed = _print_result(target_norm, results, args.expect_violations)
-        if args.verbose:
+        passed = _print_result(
+            target=target_norm,
+            results=results,
+            expect_violations=expect_violations,
+            project_dir=project_dir,
+        )
+        if verbose:
             for r in results:
                 if r.get("expr"):
                     print(f"         expr: {r['expr'][:80]}")
@@ -247,7 +209,3 @@ def run_check(args) -> None:
     else:
         print("FAIL\n")
         sys.exit(1)
-
-
-if __name__ == "__main__":
-    main()
