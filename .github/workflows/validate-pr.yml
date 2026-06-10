@@ -82,6 +82,8 @@ jobs:
         run: uv sync --locked --all-extras --dev
 
       - name: Verify manifest and layer files (dry run)
+        env: 
+          REPO_ROOT: ${{ github.workspace }}
         run: uv run python -m sys_infra.entry validate --dry-run
 
   # ---------------------------------------------------------------------------
