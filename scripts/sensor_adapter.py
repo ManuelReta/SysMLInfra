@@ -88,7 +88,7 @@ import json
 import sys
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Type
 
 
 # ── Defaults (mirror Analysis.sysml nominal bind values) ─────────────────────
@@ -333,19 +333,19 @@ def make_adapter(config: dict) -> SensorAdapter:
     """Create the appropriate adapter from a config dict."""
     adapter_type = config.get("adapter", "mock").lower()
     system = config.get("system", "<SystemType>")
-    mapping = {
+    mapping: dict[str, Type[SensorAdapter]] = {
         "mock": MockSensorAdapter,
         "rest": RESTSensorAdapter,
         "mqtt": MQTTSensorAdapter,
         "opcua": OPCUASensorAdapter,
     }
-    cls = mapping.get(adapter_type)
-    if cls is None:
+    adapter_cls = mapping.get(adapter_type)
+    if adapter_cls is None:
         raise ValueError(
             f"Unknown adapter type '{adapter_type}'. "
             f"Valid options: {list(mapping.keys())}"
         )
-    return cls(config, system)
+    return adapter_cls(config, system)
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────────

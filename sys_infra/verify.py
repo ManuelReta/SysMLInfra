@@ -912,19 +912,22 @@ def run_verify(args) -> None:
     _live_bind_values: dict | None = None
     if args.live:
         import importlib.util as _ilu
+        import json as _json
 
         _adapter_path = os.path.join(REPO_ROOT, "scripts", "sensor_adapter.py")
         if not os.path.exists(_adapter_path):
-            print(red("ERROR: scripts/sensor_adapter.py not found."))
-            sys.exit(2)
+            raise FileNotFoundError("scripts/sensor_adapter.py not found")
+
         spec = _ilu.spec_from_file_location("sensor_adapter", _adapter_path)
+        if spec is None or spec.loader is None:
+            raise ImportError("Failed to load sensor_adapter module spec")
+
         _sa_mod = _ilu.module_from_spec(spec)
         spec.loader.exec_module(_sa_mod)
-        import json as _json
 
         if not os.path.exists(args.live):
-            print(red(f"ERROR: Live config file not found: {args.live}"))
-            sys.exit(2)
+            raise FileNotFoundError(f"Live config file not found: {args.live}")
+
         with open(args.live) as _fh:
             _live_config = _json.load(_fh)
         _adapter = _sa_mod.make_adapter(_live_config)

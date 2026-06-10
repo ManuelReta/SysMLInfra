@@ -17,10 +17,13 @@ repos:
   hooks:
     - id: uv-lock
 
-- repo: https://github.com/pre-commit/mirrors-mypy
-  rev: v1.7.0
+
+- repo: local
   hooks:
     - id: mypy
-      name: "Mypy - check type hints"
+      name: Mypy (uv)
       entry: uv run mypy
-      args: [ --ignore-missing-imports, --active]
+      language: system
+      types: [python]
+      args: [--ignore-missing-imports]
+
