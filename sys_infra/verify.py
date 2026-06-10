@@ -41,6 +41,7 @@ import os
 import re
 import sys
 from pathlib import Path
+from scripts.utils import dry_runner
 from sys_infra.environment import LIB_DIR, REPO_ROOT
 from sys_infra.utils import _USE_COLOR, bold, cyan, dim, green, red, yellow
 
@@ -415,7 +416,7 @@ def _run_kernel(
         nb,
         timeout=300,
         kernel_name=kernel_name,
-        resources={"metadata": {"path": REPO_ROOT}},
+        resources={"metadata": {"path": project_dir}},
     )
 
     # The SysML kernel JAR writes ~50 lines of "Reading *.kerml" messages plus
@@ -685,7 +686,12 @@ def _publish(layer_paths: list[str], project_name: str) -> None:
 # ── Dry-run ───────────────────────────────────────────────────────────────────
 
 
-def _dry_run(name: str, layers: list, validation_layers: list | None) -> None:
+""" def _dry_run(
+    name: str, layers: list, project_dir: str, validation_layers: list | None
+) -> None:
+    # TODO the function dry_runner in ci_kernel_validate.py has some (if not all) 
+    # overlapping logic with this function; consider refactoring to reuse code
+
     vl_set = set(validation_layers) if validation_layers else set(layers)
     print(bold(f"\nDRY RUN — {name}"))
     print(f"  {len(layers)} layer(s) in manifest order")
@@ -700,7 +706,7 @@ def _dry_run(name: str, layers: list, validation_layers: list | None) -> None:
     print()
     missing = []
     for i, fname in enumerate(layers, 1):
-        path = os.path.join(REPO_ROOT, fname)
+        path = os.path.join(project_dir, fname)
         ok = os.path.exists(path)
         size = os.path.getsize(path) if ok else 0
         icon = green("✓") if ok else red("✗ MISSING")
@@ -713,7 +719,7 @@ def _dry_run(name: str, layers: list, validation_layers: list | None) -> None:
         sys.exit(2)
     print(green("  All layer files present."))
     print("\n  Run without --dry-run to execute the kernel verification.")
-    sys.exit(0)
+    sys.exit(0) """
 
 
 # ── Z3 formal analysis bridge ─────────────────────────────────────────────────
@@ -925,7 +931,7 @@ def run_verify(
 
     # Dry-run: always uses full layers list
     if dry_run:
-        _dry_run(project_name, all_layers, validation_layers)
+        dry_runner(project_name, all_layers, project_dir, validation_layers)
 
     # ── Live sensor mode ───────────────────────────────────────────────────────
     _live_bind_values: dict | None = None

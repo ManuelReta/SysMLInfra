@@ -42,13 +42,7 @@ Adapting for a new project:
 import os
 import sys
 
-# ---------------------------------------------------------------------------
-# Path helpers
-# ---------------------------------------------------------------------------
-
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MANIFEST = os.path.join(REPO_ROOT, "sysml-project.yml")
-
+from scripts.utils import dry_runner
 
 # ---------------------------------------------------------------------------
 # sysml-project.yml reader — no pyyaml dependency
@@ -96,7 +90,9 @@ def read_manifest(path: str) -> tuple:
 # ---------------------------------------------------------------------------
 
 
-def dry_runner(name: str, layers: list, validation_layers: list | None = None) -> None:
+""" def dry_runner(
+    name: str, layers: list, project_dir: str, validation_layers: list | None = None
+) -> None:
     print(f"DRY RUN  —  project: {name}")
     vl_set = set(validation_layers) if validation_layers else set(layers)
     print(f"  {len(layers)} layer(s) in manifest order")
@@ -111,7 +107,7 @@ def dry_runner(name: str, layers: list, validation_layers: list | None = None) -
     print()
     missing = []
     for i, fname in enumerate(layers, 1):
-        path = os.path.join(REPO_ROOT, fname)
+        path = os.path.join(project_dir, fname)
         if os.path.exists(path):
             size = os.path.getsize(path)
             print(f"  [{i}] {fname:<40} {size:>7} bytes  OK")
@@ -124,7 +120,7 @@ def dry_runner(name: str, layers: list, validation_layers: list | None = None) -
             file=sys.stderr,
         )
         sys.exit(1)
-    print("\nDry run passed — all layer files present.")
+    print("\nDry run passed — all layer files present.") """
 
 
 # ---------------------------------------------------------------------------
@@ -315,7 +311,7 @@ def run_validate(project_dir, dry_run=False, all_layers=False) -> None:
     # --all-layers overrides validation_layers (useful for local debugging).
     # Default: use validation_layers if present, else fall back to layers.
     if dry_run:
-        dry_runner(name, layers, validation_layers)
+        dry_runner(name, layers, project_dir, validation_layers)
         print("after dry")
     elif all_layers:
         print("NOTE: --all-layers set — running kernel on ALL layers.")
