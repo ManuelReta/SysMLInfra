@@ -175,4 +175,4 @@ jobs:
       # -----------------------------------------------------------------------
       - name: Run SysML v2 kernel validation
         shell: bash -el {0}
-        run: python scripts/ci_kernel_validate.py
+        run: python -m scripts.ci_kernel_validate
