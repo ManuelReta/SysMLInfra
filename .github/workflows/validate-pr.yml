@@ -81,6 +81,14 @@ jobs:
       - name: Install the project
         run: uv sync --locked --all-extras --dev
 
+      - name: Mypy type checking
+        run: uv run pre-commit run mypy  
+
+      - name: Ruff format (check)
+        run: uvx ruff format --check --exclude "**/*.ipynb"
+      - name: Ruff lint (check)
+        run: uvx ruff check --output-format=github --exclude "**/*.ipynb"
+
       - name: Verify manifest and layer files (dry run)
         env: 
           REPO_ROOT: ${{ github.workspace }}
