@@ -48,6 +48,8 @@ jobs:
         run: uv python install
 
       - name: Run unit tests
+        env:
+          REPO_ROOT: ${{ github.workspace }}
         run: uv run pytest tests/ -x --tb=short -q
 
   # ---------------------------------------------------------------------------
