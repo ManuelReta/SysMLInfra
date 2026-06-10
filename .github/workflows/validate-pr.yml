@@ -156,7 +156,8 @@ jobs:
           mamba install -y -c conda-forge \
             "jupyter-sysml-kernel=0.58.0" \
             "nbclient>=0.10" \
-            "nbformat>=5.9"
+            "nbformat>=5.9" \
+            "python-dotenv>=1.2.2"
 
       # -----------------------------------------------------------------------
       # 5. List registered Jupyter kernels so the exact name is visible in
