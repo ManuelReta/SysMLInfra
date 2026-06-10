@@ -43,6 +43,7 @@ import os
 import sys
 
 from scripts.utils import dry_runner
+from sys_infra.environment import EXAMPLES_BILGEPUMP_DIR
 
 # ---------------------------------------------------------------------------
 # sysml-project.yml reader — no pyyaml dependency
@@ -337,4 +338,4 @@ def run_validate(project_dir, dry_run=False, all_layers=False) -> None:
 
 
 if __name__ == "__main__":
-    run_validate(project_dir="fefe", dry_run=False, all_layers=False)
+    run_validate(project_dir=EXAMPLES_BILGEPUMP_DIR, dry_run=False, all_layers=False)

@@ -175,4 +175,6 @@ jobs:
       # -----------------------------------------------------------------------
       - name: Run SysML v2 kernel validation
         shell: bash -el {0}
+        env: 
+          REPO_ROOT: ${{ github.workspace }}
         run: python -m scripts.ci_kernel_validate
