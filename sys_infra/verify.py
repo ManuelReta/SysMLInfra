@@ -34,22 +34,22 @@ Exit codes:
 """
 
 from __future__ import annotations
-
-import argparse
 import json
 import os
 import re
 import sys
 from pathlib import Path
+from typing import Any
 from scripts.utils import dry_runner
-from sys_infra.environment import LIB_DIR, REPO_ROOT
+from sys_infra.commit import get_host
+from sys_infra.environment import LIB_DIR, REPO_ROOT, SysandPackageStructure
 from sys_infra.utils import _USE_COLOR, bold, cyan, dim, green, red, yellow
 
 
 # ── Manifest reader (same logic as ci_kernel_validate.py) ────────────────────
 
 
-def _read_manifest(path: str) -> tuple[str, list, list | None]:
+def _read_manifest(path: str) -> tuple[str, list[str], list[str] | None]:
     name = "SysMLProject"
     layers: list[str] = []
     validation_layers: list[str] | None = None
@@ -80,8 +80,6 @@ def _read_manifest(path: str) -> tuple[str, list, list | None]:
 
 
 # ── Comment stripping + constraint evaluation (fallback path) ────────────────
-
-
 def _strip_comments(text: str) -> str:
     text = re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)
     text = re.sub(r"//[^\n]*", "", text)
@@ -94,7 +92,6 @@ def _read(path: str) -> str:
 
 
 def _build_bind_values(analysis_text: str, negative: bool) -> tuple[dict, dict]:
-    """Return (full_path_index, bare_name_index) from bind statements."""
     bind_values: dict = {}
     for m in re.finditer(r"\bbind\s+([\w.]+)\s*=\s*([^;]+);", analysis_text):
         path = m.group(1).strip()
@@ -173,11 +170,18 @@ def _run_fallback(
     Works without the SysML kernel; mirrors the logic in verify.sh.
     Returns list of {requirement, satisfied, expr, label} dicts.
     """
-    analysis_path = next((p for p in layer_paths if "analysis" in p.lower()), None)
-    requirements_path = next(
-        (p for p in layer_paths if "requirements" in p.lower()), None
+
+    # TODO Is this necessary? Can`t we just run all these files and it should be good?
+
+    analysis_path = (
+        layer_paths  # next((p for p in layer_paths if "analysis" in p.lower()), None)
     )
-    safety_path = next((p for p in layer_paths if "safety" in p.lower()), None)
+    requirements_path = layer_paths  # next(
+    #    (p for p in layer_paths if "requirements" in p.lower()), None
+    # )
+    safety_path = (
+        layer_paths  # next((p for p in layer_paths if "safety" in p.lower()), None)
+    )
 
     if not analysis_path or not requirements_path:
         print(
@@ -187,16 +191,19 @@ def _run_fallback(
         )
         sys.exit(2)
 
-    analysis_text = _strip_comments(_read(os.path.join(project_dir, analysis_path)))
+    # analysis_text = _strip_comments(_read(os.path.join(project_dir, analysis_path)))
+
+    analysis_text = "\n".join(
+        _strip_comments(_read(os.path.join(project_dir, p))) for p in analysis_path
+    )
+
     bind_values, bare_values = _build_bind_values(analysis_text, negative)
 
     # Collect requirement defs from Requirements.sysml + Safety.sysml
     req_texts: list[tuple[str, str]] = []  # (rel_path, content)
-    for rp in (requirements_path, safety_path):
-        if rp and os.path.exists(os.path.join(project_dir, rp)):
-            req_texts.append(
-                (rp, _strip_comments(_read(os.path.join(project_dir, rp))))
-            )
+    for rp in set(requirements_path + safety_path):
+        # if rp and os.path.exists(os.path.join(project_dir, rp)):
+        req_texts.append((rp, _strip_comments(_read(rp))))
 
     req_pattern = re.compile(
         r"requirement\s+def\s+(\w+).*?require\s+constraint\s*\{([^}]+)\}",
@@ -243,6 +250,7 @@ def _build_kernel_eval_cells(
         "sys.pumpB.isRedundant == true"
           → "true == true"           (bind sys.pumpB.isRedundant = true)
     """
+    """     
     analysis_path = next((p for p in layer_paths if "analysis" in p.lower()), None)
     requirements_path = next(
         (p for p in layer_paths if "requirements" in p.lower()), None
@@ -253,12 +261,46 @@ def _build_kernel_eval_cells(
         return []
 
     analysis_text = _strip_comments(_read(os.path.join(project_dir, analysis_path)))
-    bind_values, bare_values = _build_bind_values(analysis_text, negative)
+    bind_values, bare_values = _build_bind_values(analysis_text, negative) 
 
     req_texts: list[str] = []
     for rp in (requirements_path, safety_path):
         if rp and os.path.exists(os.path.join(project_dir, rp)):
             req_texts.append(_strip_comments(_read(os.path.join(project_dir, rp))))
+    """
+    analysis_path = (
+        layer_paths  # next((p for p in layer_paths if "analysis" in p.lower()), None)
+    )
+    requirements_path = layer_paths  # next(
+    #    (p for p in layer_paths if "requirements" in p.lower()), None
+    # )
+    safety_path = (
+        layer_paths  # next((p for p in layer_paths if "safety" in p.lower()), None)
+    )
+
+    if not analysis_path or not requirements_path:
+        print(
+            red(
+                "ERROR: Cannot locate Analysis.sysml or Requirements.sysml in layer list."
+            )
+        )
+        sys.exit(2)
+
+    # analysis_text = _strip_comments(_read(os.path.join(project_dir, analysis_path)))
+
+    analysis_text = "\n".join(
+        _strip_comments(_read(os.path.join(project_dir, p))) for p in analysis_path
+    )
+
+    bind_values, bare_values = _build_bind_values(analysis_text, negative)
+
+    # Collect requirement defs from Requirements.sysml + Safety.sysml
+    req_texts: list[tuple[str, str]] = []  # (rel_path, content)
+    for rp in set(requirements_path + safety_path):
+        # if rp and os.path.exists(os.path.join(project_dir, rp)):
+        req_texts.append(
+            (str(project_dir / rp), _strip_comments(_read(str(project_dir / rp))))
+        )
 
     req_pattern = re.compile(
         r"requirement\s+def\s+(\w+).*?require\s+constraint\s*\{([^}]+)\}",
@@ -266,7 +308,7 @@ def _build_kernel_eval_cells(
     )
 
     eval_cells: list[tuple[str, str, str]] = []
-    for text in req_texts:
+    for _, text in req_texts:
         for m in req_pattern.finditer(text):
             req_name = m.group(1)
             expr = re.sub(r"\s+", " ", m.group(2).strip())
@@ -618,7 +660,7 @@ def _save_results(results: list[dict], mode: str, engine: str) -> None:
 # ── Optional: publish to SST API ─────────────────────────────────────────────
 
 
-def _publish(layer_paths: list[str], project_name: str) -> None:
+def _publish(layer_paths: list[str], project_name: str, project_dir: Path) -> None:
     """Upload model layers to the SST public API (optional, for sharing)."""
     try:
         import requests  # noqa: PLC0415
@@ -628,11 +670,11 @@ def _publish(layer_paths: list[str], project_name: str) -> None:
         )
         return
 
-    api_base = os.environ.get("SYSML_API_BASE", "http://sysml2.intercax.com:9000")
+    api_base = os.environ.get("SYSML_API_BASE")
     print(f"\n  {bold('Publishing to SST API:')}  {api_base}")
 
     try:
-        r = requests.get(f"{api_base}/projects", timeout=8)
+        r = requests.get(f"{api_base}/projects", timeout=8000)
         if r.status_code != 200:
             print(
                 yellow(
@@ -648,7 +690,7 @@ def _publish(layer_paths: list[str], project_name: str) -> None:
     r = requests.post(
         f"{api_base}/projects",
         json={"@type": "Project", "name": project_name},
-        timeout=15,
+        timeout=1500,
     )
     if r.status_code not in (200, 201):
         print(red(f"  ERROR: Failed to create project (HTTP {r.status_code})"))
@@ -657,8 +699,10 @@ def _publish(layer_paths: list[str], project_name: str) -> None:
     print(f"  Project ID : {project_id}")
 
     commit_ids: dict[str, str] = {}
+    # TODO Can we join all bodies into a single commit.
+    # Would there be dependency issues if doing this?
     for layer_file in layer_paths:
-        abs_path = os.path.join(REPO_ROOT, layer_file)
+        abs_path = os.path.join(project_dir, layer_file)
         body = _read(abs_path)
         stem = Path(layer_file).stem.lower()
         rc = requests.post(
@@ -667,7 +711,7 @@ def _publish(layer_paths: list[str], project_name: str) -> None:
                 "description": stem,
                 "changes": [{"@type": "TextualRepresentation", "body": body}],
             },
-            timeout=30,
+            timeout=3000,
         )
         if rc.status_code in (200, 201):
             cid = rc.json().get("@id") or rc.json().get("id", "?")
@@ -684,6 +728,113 @@ def _publish(layer_paths: list[str], project_name: str) -> None:
 
 
 # ── Dry-run ───────────────────────────────────────────────────────────────────
+
+
+def _run_kernel_publish(
+    layer_paths: list[str], kernel_name: str, project_dir: Path, project_name: str
+) -> tuple[bool, list[Any]]:
+    """
+    Publishes the layers bundled as one "superpackage". This is how the same project can be used.
+    """
+    try:
+        import nbformat
+        from nbclient import NotebookClient
+        from nbclient.exceptions import CellExecutionError
+    except ImportError as exc:
+        print(red(f"ERROR: {exc}"))
+        print("  Install CI dependencies:  pip install nbclient nbformat")
+        sys.exit(2)
+
+    nb = nbformat.v4.new_notebook()
+    nb.metadata["kernelspec"] = {
+        "display_name": "SysML v2",
+        "language": "sysml",
+        "name": kernel_name,
+    }
+
+    # ── Model layer cells ─────────────────────────────────────────────────────
+    n_model_cells = 3
+    all_packages = []
+    package_name = f"{project_name}Super"
+    super_package_prefix = f"package {package_name} {{\n\n"
+    super_package_suffix = "\n }"
+    super_text = super_package_prefix
+
+    for layer_file in layer_paths:
+        abs_path = os.path.join(project_dir, layer_file)
+
+        text = _read(abs_path)
+        super_text += text
+        pattern = r"package\s+'?([\w:]+)'?\s*\{"
+        packages = re.findall(pattern, text)
+        all_packages += packages
+    super_text += super_package_suffix
+
+    nb.cells.append(nbformat.v4.new_code_cell(super_text))
+
+    repo_cell = nbformat.v4.new_code_cell(f"%repo {get_host()}")
+    publish_cell = nbformat.v4.new_code_cell(
+        f"%publish {package_name} --project='{package_name}_project' --branch='main'"
+    )
+    publish_cell.metadata["tags"] = ["raises-exception"]
+    nb.cells.append(repo_cell)
+    nb.cells.append(publish_cell)
+
+    client = NotebookClient(
+        nb,
+        timeout=300,
+        kernel_name=kernel_name,
+        resources={"metadata": {"path": project_dir}},
+    )
+
+    # The SysML kernel JAR writes ~50 lines of "Reading *.kerml" messages plus
+    # log4j and JUL INFO logs via the inherited stdout/stderr file descriptors.
+    # Redirect fd 1 and fd 2 at the OS level before execute() starts the subprocess
+    # so those messages are silently discarded.  We flush first to avoid losing
+    # any buffered Python output, then restore after execute() returns.
+    sys.stdout.flush()
+    sys.stderr.flush()
+    _saved_out = os.dup(1)
+    _saved_err = os.dup(2)
+    _devnull = os.open(os.devnull, os.O_WRONLY)
+    os.dup2(_devnull, 1)
+    os.dup2(_devnull, 2)
+    os.close(_devnull)
+
+    _exec_error: Exception | None = None
+    try:
+        client.execute()
+    except CellExecutionError:
+        pass  # We inspect outputs below regardless
+    except Exception as exc:
+        _exec_error = exc
+    finally:
+        os.dup2(_saved_out, 1)
+        os.dup2(_saved_err, 2)
+        os.close(_saved_out)
+        os.close(_saved_err)
+
+    if _exec_error is not None:
+        print(red(f"\nKernel execution error: {_exec_error}"))
+        return False, []
+
+    # ── Parse model layer results ─────────────────────────────────────────────
+    cell_results: list[dict] = []
+    all_ok = True
+    for i in range(n_model_cells):
+        cell = nb.cells[i]
+        errors = [o for o in cell.get("outputs", []) if o.get("output_type") == "error"]
+        cell_results.append(
+            {
+                "layer": layer_paths[i],
+                "ok": not errors,
+                "errors": errors,
+            }
+        )
+        if errors:
+            all_ok = False
+
+    return all_ok, cell_results
 
 
 """ def _dry_run(
@@ -817,88 +968,8 @@ def _run_z3_analysis(bind_values: dict | None, verbose: bool, MANIFEST: Path) ->
     print(dim("  Z3 results written to lib/z3-analysis-results.json"))
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        prog="verify.py",
-        description=__doc__,
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    parser.add_argument(
-        "--project-dir",
-        default="/mnt/c/Users/SINKAA/Desktop/code/mons_wp1/SysMLInfra/examples/bilgepump",
-        help="Path to the project directory containing sysml-project.yml",
-    )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="List layers and check files; do not run the kernel",
-    )
-    parser.add_argument(
-        "--negative",
-        action="store_true",
-        help="Inject pumpA.flowRate=0 (pump A failure simulation)",
-    )
-    parser.add_argument(
-        "--all",
-        action="store_true",
-        help="Run ALL layers including FMEA negative tests + UQ sweep",
-    )
-    parser.add_argument(
-        "--fallback",
-        action="store_true",
-        help="Use Python regex/eval only (DEV/TEST use only; see WARNING in output)",
-    )
-    parser.add_argument(
-        "--require-kernel",
-        action="store_true",
-        help="Exit with code 2 if the SysML v2 kernel is not installed (no fallback)",
-    )
-    parser.add_argument(
-        "--visual",
-        action="store_true",
-        help="Generate system topology and traceability diagrams",
-    )
-    parser.add_argument(
-        "--publish",
-        action="store_true",
-        help="Push committed layers to the SST API after verification",
-    )
-    parser.add_argument(
-        "--verbose",
-        action="store_true",
-        help="Show constraint expression for each requirement",
-    )
-    parser.add_argument(
-        "--z3",
-        action="store_true",
-        help="Run Z3 formal analysis (formal_analysis.py) after SysML verification",
-    )
-    parser.add_argument(
-        "--live",
-        metavar="CONFIG",
-        help="Load bind values from a live sensor adapter config file "
-        "(see scripts/sensor_adapter.py for the config schema). "
-        "Takes a single snapshot then runs verification.",
-    )
-    args = parser.parse_args()
-    run_verify(
-        project_dir=Path(args.project_dir),
-        dry_run=args.dry_run,
-        negative=args.negative,
-        all=args.all,
-        fallback=args.fallback,
-        require_kernel=args.require_kernel,
-        visual=args.visual,
-        publish=args.publish,
-        z3=args.z3,
-        live=args.live,
-        verbose=args.verbose,
-    )
-
-
-# def run_verify(args) -> None:
 def run_verify(
-    project_dir,
+    project_dir: Path,
     dry_run,
     negative,
     all,
@@ -910,7 +981,6 @@ def run_verify(
     live,
     verbose,
 ) -> None:
-    # project_dir = Path(args.project_dir)
     print("Using project: ", project_dir)
 
     if not project_dir.exists():
@@ -918,12 +988,29 @@ def run_verify(
         sys.exit(2)
 
     MANIFEST = project_dir / "sysml-project.yml"
-    # ── Load manifest ──────────────────────────────────────────────────────────
+    validation_layers: list[str] | None
+    # ── Load manifest or fallback ───────────────────────────────────────────────
     if not MANIFEST.exists():
-        print(red(f"ERROR: sysml-project.yml not found at {MANIFEST}"))
-        sys.exit(2)
+        sysandpackage = SysandPackageStructure(project_dir)
+        print(f"WARNING: sysml-project.yml not found at {MANIFEST}")
+        print("Falling back to reading .sysml files in project_dir")
 
-    project_name, all_layers, validation_layers = _read_manifest(str(MANIFEST))
+        # Collect all .sysml files
+        sysml_files = sorted(sysandpackage.project_dir.glob("*.sysml"))
+
+        if not sysml_files:
+            print("ERROR: No .sysml files found in project directory")
+            sys.exit(2)
+
+        # Use filenames (or full paths depending on your needs)
+        all_layers = [str(f) for f in sysml_files]
+        validation_layers = list(all_layers)
+
+        # Derive a project name (optional)
+        project_name = sysandpackage.project_name
+
+    else:
+        project_name, all_layers, validation_layers = _read_manifest(str(MANIFEST))
 
     if not all_layers:
         print(red("ERROR: sysml-project.yml contains no layers entries."))
@@ -1103,11 +1190,12 @@ def run_verify(
         )
 
     # ── Optional publish ───────────────────────────────────────────────────────
-    if publish:
-        _publish(all_layers, project_name)
+    if publish and kernel_name is not None:
+        _run_kernel_publish(all_layers, kernel_name, project_dir, project_name)
+        # _publish(all_layers, project_name, project_dir)
 
     sys.exit(0 if all_pass else 1)
 
 
 if __name__ == "__main__":
-    main()
+    ...

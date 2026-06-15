@@ -1,13 +1,13 @@
 import os
 import sys
-
+from pathlib import Path
 # ---------------------------------------------------------------------------
 # Dry-run: verify all layer files exist and print the execution order
 # ---------------------------------------------------------------------------
 
 
 def dry_runner(
-    name: str, layers: list, project_dir: str, validation_layers: list | None = None
+    name: str, layers: list, project_dir: Path, validation_layers: list | None = None
 ) -> None:
     print(f"DRY RUN  —  project: {name}")
     vl_set = set(validation_layers) if validation_layers else set(layers)

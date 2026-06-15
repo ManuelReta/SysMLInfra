@@ -52,7 +52,7 @@ def _load_manifest(manifest_path: Path) -> tuple[str, list[str]]:
     return name, layers
 
 
-def _prerequisites(target: str, all_layers: list[str]) -> list[str]:
+def _prerequisites(target: str, all_layers: list[str], project_dir: Path) -> list[str]:
     """
     Return all layers that appear before 'target' in the manifest order,
     plus 'target' itself.  Ensures imports resolve when running a single file.
@@ -60,7 +60,7 @@ def _prerequisites(target: str, all_layers: list[str]) -> list[str]:
     target_norm = target.replace("\\", "/")
     result: list[str] = []
     for layer in all_layers:
-        result.append(layer)
+        result.append(str(project_dir / layer))
         if layer.replace("\\", "/") == target_norm:
             return result
     # target not in manifest — include all layers + the target as a free-standing file
@@ -156,7 +156,7 @@ def run_check(project_dir, targets, fallback, expect_violations, verbose) -> Non
     overall_pass = True
     for target in targets:
         target_norm = target.replace("\\", "/")
-        layer_set = _prerequisites(target_norm, all_layers)
+        layer_set = _prerequisites(target_norm, all_layers, project_dir)
 
         # Verify the target file exists
         target_path = project_dir / target_norm
