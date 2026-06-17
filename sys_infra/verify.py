@@ -203,7 +203,7 @@ def _run_fallback(
     req_texts: list[tuple[str, str]] = []  # (rel_path, content)
     for rp in set(requirements_path + safety_path):
         # if rp and os.path.exists(os.path.join(project_dir, rp)):
-        req_texts.append((rp, _strip_comments(_read(rp))))
+        req_texts.append((rp, _strip_comments(_read(os.path.join(project_dir, rp)))))
 
     req_pattern = re.compile(
         r"requirement\s+def\s+(\w+).*?require\s+constraint\s*\{([^}]+)\}",
