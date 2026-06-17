@@ -203,7 +203,7 @@ def _run_fallback(
     req_texts: list[tuple[str, str]] = []  # (rel_path, content)
     for rp in set(requirements_path + safety_path):
         # if rp and os.path.exists(os.path.join(project_dir, rp)):
-        req_texts.append((rp, _strip_comments(_read(rp))))
+        req_texts.append((rp, _strip_comments(_read(os.path.join(project_dir, rp)))))
 
     req_pattern = re.compile(
         r"requirement\s+def\s+(\w+).*?require\s+constraint\s*\{([^}]+)\}",
@@ -774,7 +774,7 @@ def _run_kernel_publish(
 
     repo_cell = nbformat.v4.new_code_cell(f"%repo {get_host()}")
     publish_cell = nbformat.v4.new_code_cell(
-        f"%publish {package_name} --project='{package_name}_project'"
+        f"%publish {package_name} --project='{package_name}_project' --branch='main'"
     )
     publish_cell.metadata["tags"] = ["raises-exception"]
     nb.cells.append(repo_cell)
@@ -826,6 +826,7 @@ def _run_kernel_publish(
         errors = [o for o in cell.get("outputs", []) if o.get("output_type") == "error"]
         cell_results.append(
             {
+                "layer": layer_paths[i],
                 "ok": not errors,
                 "errors": errors,
             }

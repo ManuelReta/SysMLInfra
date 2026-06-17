@@ -29,8 +29,24 @@ Skipping any cell leaves names unresolved; re-run from the first skipped cell.
 | import `<Project>::Library::*` fails | Cell 1 used nested packages |
 
 ## Publishing
-`%publish` — pushes the current session model to the SST API at `http://sysml2.intercax.com:9000`.
-Run after all cells pass; not required for local constraint evaluation.
+`%publish <PackageName>` — pushes a named element to the SST API at `http://sysml2.intercax.com:9000`.
+**Always supply an explicit element name** — bare `%publish` (no argument) does nothing and returns `[]`.
+Each `%publish <Name>` call must be in its own cell; multiple calls in one cell only execute the first.
+Each publish call creates or updates a separate project named after the element on the API server.
+
+```sysml
+// CORRECT — one %publish per cell, explicit element name
+%publish BilgePump_Library
+
+// WRONG — bare %publish does nothing
+%publish
+
+// WRONG — only the first publish runs when multiple are in one cell
+%publish BilgePump_Library
+%publish BilgePump_Architecture   // ← never reaches the API
+```
+
+Not required for local constraint evaluation (`--fallback`).
 
 ## STPA_Tool — not part of this project
 
