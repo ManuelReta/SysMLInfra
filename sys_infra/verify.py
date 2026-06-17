@@ -774,7 +774,7 @@ def _run_kernel_publish(
 
     repo_cell = nbformat.v4.new_code_cell(f"%repo {get_host()}")
     publish_cell = nbformat.v4.new_code_cell(
-        f"%publish {package_name} --project='{package_name}_project' --branch='main'"
+        f"%publish {package_name} --project='{package_name}_project'"
     )
     publish_cell.metadata["tags"] = ["raises-exception"]
     nb.cells.append(repo_cell)
@@ -826,7 +826,6 @@ def _run_kernel_publish(
         errors = [o for o in cell.get("outputs", []) if o.get("output_type") == "error"]
         cell_results.append(
             {
-                "layer": layer_paths[i],
                 "ok": not errors,
                 "errors": errors,
             }
