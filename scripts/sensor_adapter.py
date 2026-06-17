@@ -82,38 +82,37 @@ Configuration file schema (sensors.json):
 from __future__ import annotations
 
 import abc
-import argparse
 import datetime
 import json
 import sys
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Type
 
 
 # ── Defaults (mirror Analysis.sysml nominal bind values) ─────────────────────
 
 DEFAULTS: dict[str, Any] = {
-    "sys.sensor.waterLevel":          0.15,
-    "sys.sensor.accuracy_m":          0.03,
-    "sys.controller.triggerLevel_m":  0.25,
-    "sys.controller.responseTime_s":  1.0,
-    "sys.controller.failoverTime_s":  0.8,
-    "sys.pumpA.flowRate":             0.025,
-    "sys.pumpA.efficiency":           0.82,
-    "sys.pumpA.runHours":           120.0,
-    "sys.pumpB.flowRate":             0.025,
-    "sys.pumpB.efficiency":           0.82,
-    "sys.pumpB.runHours":            85.0,
-    "sys.pumpB.isRedundant":          True,
-    "sys.discharge.pipeLossFactor":   0.05,
-    "sys.alarm.activationDelay_s":    0.5,
-    "sys.alarm.isActive":             False,
-    "sys.ui.overrideActive":          False,
-    "sys.inflowRate_m3s":             0.020,
-    "sys.criticalLevel_m":            0.50,
-    "sys.power.nominalVoltage":     440.0,
-    "sys.power.redundancyActive":     False,
+    "sys.sensor.waterLevel": 0.15,
+    "sys.sensor.accuracy_m": 0.03,
+    "sys.controller.triggerLevel_m": 0.25,
+    "sys.controller.responseTime_s": 1.0,
+    "sys.controller.failoverTime_s": 0.8,
+    "sys.pumpA.flowRate": 0.025,
+    "sys.pumpA.efficiency": 0.82,
+    "sys.pumpA.runHours": 120.0,
+    "sys.pumpB.flowRate": 0.025,
+    "sys.pumpB.efficiency": 0.82,
+    "sys.pumpB.runHours": 85.0,
+    "sys.pumpB.isRedundant": True,
+    "sys.discharge.pipeLossFactor": 0.05,
+    "sys.alarm.activationDelay_s": 0.5,
+    "sys.alarm.isActive": False,
+    "sys.ui.overrideActive": False,
+    "sys.inflowRate_m3s": 0.020,
+    "sys.criticalLevel_m": 0.50,
+    "sys.power.nominalVoltage": 440.0,
+    "sys.power.redundancyActive": False,
 }
 
 
@@ -122,6 +121,7 @@ def _now_utc() -> str:
 
 
 # ── Abstract base ─────────────────────────────────────────────────────────────
+
 
 class SensorAdapter(abc.ABC):
     """
@@ -152,13 +152,14 @@ class SensorAdapter(abc.ABC):
         values = {**DEFAULTS, **raw}
         return {
             "timestamp": _now_utc(),
-            "system":    self.system,
-            "source":    self.__class__.__name__,
-            "values":    values,
+            "system": self.system,
+            "source": self.__class__.__name__,
+            "values": values,
         }
 
 
 # ── Mock adapter ──────────────────────────────────────────────────────────────
+
 
 class MockSensorAdapter(SensorAdapter):
     """
@@ -193,6 +194,7 @@ class MockSensorAdapter(SensorAdapter):
 
 # ── REST adapter ──────────────────────────────────────────────────────────────
 
+
 class RESTSensorAdapter(SensorAdapter):
     """
     HTTP polling adapter.  Fetches JSON from a REST endpoint and maps fields
@@ -210,9 +212,9 @@ class RESTSensorAdapter(SensorAdapter):
             )
 
         rest_cfg = self.config.get("rest", {})
-        url      = rest_cfg.get("url", "")
-        headers  = rest_cfg.get("headers", {})
-        mapping  = rest_cfg.get("mapping", {})
+        url = rest_cfg.get("url", "")
+        headers = rest_cfg.get("headers", {})
+        mapping = rest_cfg.get("mapping", {})
 
         if not url:
             raise ValueError("REST adapter requires 'rest.url' in config")
@@ -239,6 +241,7 @@ class RESTSensorAdapter(SensorAdapter):
 
 # ── MQTT adapter ──────────────────────────────────────────────────────────────
 
+
 class MQTTSensorAdapter(SensorAdapter):
     """
     MQTT subscriber adapter.  Subscribes to configured topics and collects
@@ -256,10 +259,10 @@ class MQTTSensorAdapter(SensorAdapter):
             )
 
         mqtt_cfg = self.config.get("mqtt", {})
-        broker   = mqtt_cfg.get("broker", "localhost")
-        port     = int(mqtt_cfg.get("port", 1883))
-        topics   = mqtt_cfg.get("topics", {})  # {topic: sysml_path}
-        timeout  = float(mqtt_cfg.get("poll_timeout_s", 5.0))
+        broker = mqtt_cfg.get("broker", "localhost")
+        port = int(mqtt_cfg.get("port", 1883))
+        topics = mqtt_cfg.get("topics", {})  # {topic: sysml_path}
+        timeout = float(mqtt_cfg.get("poll_timeout_s", 5.0))
 
         collected: dict[str, Any] = {}
 
@@ -289,6 +292,7 @@ class MQTTSensorAdapter(SensorAdapter):
 
 # ── OPC-UA adapter ────────────────────────────────────────────────────────────
 
+
 class OPCUASensorAdapter(SensorAdapter):
     """
     OPC-UA client adapter.  Reads node values from a PLC or SCADA OPC-UA server.
@@ -298,15 +302,15 @@ class OPCUASensorAdapter(SensorAdapter):
 
     def read(self) -> dict[str, Any]:
         try:
-            from opcua import Client  # noqa: PLC0415
+            from opcua import Client  # type: ignore[import] # noqa: PLC0415
         except ImportError:
             raise RuntimeError(
                 "opcua is required for the OPC-UA adapter: pip install opcua"
             )
 
         opcua_cfg = self.config.get("opcua", {})
-        url       = opcua_cfg.get("url", "opc.tcp://localhost:4840")
-        nodes     = opcua_cfg.get("nodes", {})  # {node_id: sysml_path}
+        url = opcua_cfg.get("url", "opc.tcp://localhost:4840")
+        nodes = opcua_cfg.get("nodes", {})  # {node_id: sysml_path}
 
         collected: dict[str, Any] = {}
         client = Client(url)
@@ -323,101 +327,65 @@ class OPCUASensorAdapter(SensorAdapter):
 
 # ── Factory ───────────────────────────────────────────────────────────────────
 
+
 def make_adapter(config: dict) -> SensorAdapter:
     """Create the appropriate adapter from a config dict."""
     adapter_type = config.get("adapter", "mock").lower()
-    system       = config.get("system", "<SystemType>")
-    mapping = {
-        "mock":  MockSensorAdapter,
-        "rest":  RESTSensorAdapter,
-        "mqtt":  MQTTSensorAdapter,
+    system = config.get("system", "<SystemType>")
+    mapping: dict[str, Type[SensorAdapter]] = {
+        "mock": MockSensorAdapter,
+        "rest": RESTSensorAdapter,
+        "mqtt": MQTTSensorAdapter,
         "opcua": OPCUASensorAdapter,
     }
-    cls = mapping.get(adapter_type)
-    if cls is None:
+    adapter_cls = mapping.get(adapter_type)
+    if adapter_cls is None:
         raise ValueError(
             f"Unknown adapter type '{adapter_type}'. "
             f"Valid options: {list(mapping.keys())}"
         )
-    return cls(config, system)
+    return adapter_cls(config, system)
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
-
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        prog="sensor_adapter.py",
-        description=__doc__,
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    parser.add_argument(
-        "--config",
-        metavar="FILE",
-        help="Path to sensor configuration JSON (see module docstring for schema).",
-    )
-    parser.add_argument(
-        "--demo",
-        action="store_true",
-        help="Run mock adapter in demo mode — no hardware required.",
-    )
-    parser.add_argument(
-        "--once",
-        action="store_true",
-        help="Take a single snapshot and exit (default: continuous loop).",
-    )
-    parser.add_argument(
-        "--interval",
-        type=float,
-        metavar="SECONDS",
-        default=5.0,
-        help="Polling interval in seconds for continuous mode (default: 5).",
-    )
-    parser.add_argument(
-        "--output",
-        choices=["json", "pretty"],
-        default="pretty",
-        help="Output format: json (one JSON object per line) or pretty (default).",
-    )
-    args = parser.parse_args()
-
+def run_sensor(demo, config, once, interval, output) -> None:
     # ── Build config ──────────────────────────────────────────────────────────
-    if args.demo:
+    if demo:
         config = {"adapter": "mock", "system": "<SystemType>"}
-    elif args.config:
-        config_path = Path(args.config)
+    elif config:
+        config_path = Path(config)
         if not config_path.exists():
-            print(f"ERROR: config file not found: {args.config}", file=sys.stderr)
+            print(f"ERROR: config file not found: {config}", file=sys.stderr)
             sys.exit(2)
         with open(config_path) as f:
             config = json.load(f)
     else:
-        parser.error("Either --demo or --config FILE is required.")
-        return  # unreachable but keeps type checkers happy
+        raise ValueError("Either --demo or --config FILE is required.")
 
-    adapter  = make_adapter(config)
-    interval = config.get("interval_s", args.interval)
+    adapter = make_adapter(config)
+    interval = config.get("interval_s", interval)
 
     def _emit(snap: dict) -> None:
-        if args.output == "json":
+        if output == "json":
             print(json.dumps(snap))
         else:
-            ts     = snap["timestamp"]
+            ts = snap["timestamp"]
             system = snap["system"]
             source = snap["source"]
             print(f"\n[{ts}]  {system}  ({source})")
             print("─" * 60)
             for k, v in snap["values"].items():
-                short = k.split(".")[-1]
+                _ = k.split(".")[-1]
                 print(f"  {k:<44}  {v}")
             print()
 
-    if args.once or args.demo:
+    if once or demo:
         # Demo: cycle through all mock scenarios once
         steps = len(adapter._scenarios) if isinstance(adapter, MockSensorAdapter) else 1
-        for _ in range(steps if args.demo else 1):
+        for _ in range(steps if demo else 1):
             snap = adapter.snapshot()
             _emit(snap)
-            if args.demo and steps > 1:
+            if demo and steps > 1:
                 time.sleep(0.5)
     else:
         # Continuous loop
@@ -432,4 +400,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    run_sensor(demo=True, config=None, once=False, interval=5, output="pretty")

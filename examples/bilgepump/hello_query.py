@@ -40,14 +40,15 @@ API = "http://sysml2.intercax.com:9000"
 # Architecture imports Library::*, so Architecture elements carry @id references
 # that point into the Library project.  The registry lets us resolve them.
 PROJECT_REGISTRY = {
-    "BilgePump_Library":      "0171dc68-e78c-41cc-8357-61665f5eface",
+    "BilgePump_Library": "0171dc68-e78c-41cc-8357-61665f5eface",
     "BilgePump_Architecture": "8ba46c08-0454-4c15-87db-e56f339add56",
     "BilgePump_Requirements": "c3c22f38-7b1d-4a58-9a87-f7d92f809534",
-    "BilgePump_Analysis":     "f1062694-fa11-4bb1-b372-54446a17b540",
+    "BilgePump_Analysis": "f1062694-fa11-4bb1-b372-54446a17b540",
 }
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
+
 
 def head_commit(pid):
     """Return the latest commit @id for a project, or None if no commits."""
@@ -90,8 +91,8 @@ print("Loading BilgePump packages from API...")
 print(f"  API: {API}")
 print()
 
-merged = {}          # {element_id: element}   — the cross-project registry
-project_heads = {}   # {project_name: commit_id}
+merged = {}  # {element_id: element}   — the cross-project registry
+project_heads = {}  # {project_name: commit_id}
 
 for pkg_name, pid in PROJECT_REGISTRY.items():
     head = head_commit(pid)
@@ -113,7 +114,8 @@ print(f"\nMerged registry: {len(merged)} elements total")
 #  resolved here via the merged registry.
 #
 part_defs = [
-    e for e in merged.values()
+    e
+    for e in merged.values()
     if e.get("@type") == "PartDefinition" and e.get("declaredName")
 ]
 print(f"\nPartDefinitions in merged registry ({len(part_defs)}):")
@@ -127,15 +129,19 @@ for pd in sorted(part_defs, key=lambda e: e.get("declaredName", "")):
 #  owner is BilgePumpA.  The owner relationship is a direct @id field.
 #
 pump_a = next(
-    (e for e in merged.values()
-     if e.get("@type") == "PartDefinition" and e.get("declaredName") == "BilgePumpA"),
+    (
+        e
+        for e in merged.values()
+        if e.get("@type") == "PartDefinition" and e.get("declaredName") == "BilgePumpA"
+    ),
     None,
 )
 
 if pump_a:
     print(f"\nBilgePumpA  (id={pump_a['@id'][:8]}...)")
     attrs = [
-        e for e in merged.values()
+        e
+        for e in merged.values()
         if e.get("@type") == "AttributeUsage"
         and (e.get("owner") or {}).get("@id") == pump_a["@id"]
     ]
@@ -151,7 +157,8 @@ else:
 #  powerIn, flowOut — each typed by a PortDefinition from the Library.
 #
 port_defs = [
-    e for e in merged.values()
+    e
+    for e in merged.values()
     if e.get("@type") == "PortDefinition" and e.get("declaredName")
 ]
 print(f"\nPortDefinitions ({len(port_defs)}):")
@@ -172,14 +179,19 @@ print("\nCross-project reference demo")
 print("  BilgePumpSystem (Architecture) → part types (Library)")
 
 system_def = next(
-    (e for e in merged.values()
-     if e.get("@type") == "PartDefinition" and e.get("declaredName") == "BilgePumpSystem"),
+    (
+        e
+        for e in merged.values()
+        if e.get("@type") == "PartDefinition"
+        and e.get("declaredName") == "BilgePumpSystem"
+    ),
     None,
 )
 
 if system_def:
     part_usages = [
-        e for e in merged.values()
+        e
+        for e in merged.values()
         if e.get("@type") == "PartUsage"
         and (e.get("owner") or {}).get("@id") == system_def["@id"]
         and e.get("declaredName")
@@ -187,12 +199,12 @@ if system_def:
     for pu in sorted(part_usages, key=lambda e: e.get("declaredName", "")):
         # Walk ownedRelationship to find FeatureTyping
         resolved_type = "?"
-        for rel_ref in (pu.get("ownedRelationship") or []):
+        for rel_ref in pu.get("ownedRelationship") or []:
             rid = rel_ref["@id"] if isinstance(rel_ref, dict) else rel_ref
             rel = merged.get(rid)
             if rel and rel.get("@type") == "FeatureTyping":
                 type_id = (rel.get("type") or {}).get("@id")
-                type_elem = merged.get(type_id)   # resolved via merged registry
+                type_elem = merged.get(type_id)  # resolved via merged registry
                 if type_elem:
                     resolved_type = type_elem.get("declaredName", "?")
                 break

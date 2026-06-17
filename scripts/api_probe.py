@@ -34,9 +34,9 @@ REFERENCE_PROJECT_NAME = "5-State-based Behavior-1"
 
 
 def banner(title: str) -> None:
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  {title}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
 
 def ok(msg: str) -> None:
@@ -92,13 +92,18 @@ def get_head_commit(api: str, project_id: str) -> str | None:
     return ref.get("@id")
 
 
-def fetch_element(api: str, project_id: str, commit_id: str, element_id: str) -> dict | None:
+def fetch_element(
+    api: str, project_id: str, commit_id: str, element_id: str
+) -> dict | None:
     """GET a single element by its @id."""
     return get(f"{api}/projects/{project_id}/commits/{commit_id}/elements/{element_id}")
 
 
 def query_elements_by_type(
-    api: str, project_id: str, commit_id: str, type_name: str,
+    api: str,
+    project_id: str,
+    commit_id: str,
+    type_name: str,
     all_elements: list[dict] | None = None,
 ) -> tuple[list[dict], bool]:
     """
@@ -134,7 +139,9 @@ def query_elements_by_type(
     except requests.exceptions.HTTPError:
         # Endpoint not supported on this deployment — filter client-side
         if all_elements is None:
-            all_elements = get(f"{api}/projects/{project_id}/commits/{commit_id}/elements") or []
+            all_elements = (
+                get(f"{api}/projects/{project_id}/commits/{commit_id}/elements") or []
+            )
         return [el for el in all_elements if el.get("@type") == type_name], False
 
 
@@ -147,7 +154,9 @@ def probe_project(api: str, project_id: str, label: str = "") -> dict | None:
     if project is None:
         fail(f"[{lbl}] Project not found")
         return None
-    ok(f"[{lbl}] Project: {project.get('name')!r}  created:{project.get('created', '?')[:10]}")
+    ok(
+        f"[{lbl}] Project: {project.get('name')!r}  created:{project.get('created', '?')[:10]}"
+    )
 
     # Branches
     branches = get(f"{api}/projects/{project_id}/branches") or []
@@ -157,7 +166,9 @@ def probe_project(api: str, project_id: str, label: str = "") -> dict | None:
         warn(f"[{lbl}] No branches — nothing to query further")
         return project
 
-    head_commit_id = (branches[0].get("referencedCommit") or branches[0].get("head") or {}).get("@id")
+    head_commit_id = (
+        branches[0].get("referencedCommit") or branches[0].get("head") or {}
+    ).get("@id")
 
     # Commits
     commits = get(f"{api}/projects/{project_id}/commits") or []
@@ -171,7 +182,9 @@ def probe_project(api: str, project_id: str, label: str = "") -> dict | None:
         return project
 
     # Elements in head commit
-    elements = get(f"{api}/projects/{project_id}/commits/{head_commit_id}/elements") or []
+    elements = (
+        get(f"{api}/projects/{project_id}/commits/{head_commit_id}/elements") or []
+    )
     if elements:
         ok(f"[{lbl}] Elements: {len(elements)} (head commit {head_commit_id[:8]}...)")
         by_type: dict[str, int] = {}
@@ -192,9 +205,15 @@ def probe_project(api: str, project_id: str, label: str = "") -> dict | None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("--api", default=API_BASE, help="API base URL")
-    parser.add_argument("--project", default=None, help="Project ID to probe (defaults to lib/current-project-id.txt)")
+    parser.add_argument(
+        "--project",
+        default=None,
+        help="Project ID to probe (defaults to lib/current-project-id.txt)",
+    )
     parser.add_argument(
         "--query-type",
         default=None,
@@ -223,7 +242,9 @@ def main() -> None:
 
     project_id = args.project
     if not project_id:
-        id_file = os.path.join(os.path.dirname(__file__), "..", "lib", "current-project-id.txt")
+        id_file = os.path.join(
+            os.path.dirname(__file__), "..", "lib", "current-project-id.txt"
+        )
         try:
             with open(id_file) as f:
                 project_id = f.read().strip()
@@ -246,14 +267,21 @@ def main() -> None:
     banner("4 / Typed element query  (POST …/query-results)")
 
     query_project_id = project_id
-    query_commit_id = get_head_commit(api, query_project_id) if query_project_id else None
+    query_commit_id = (
+        get_head_commit(api, query_project_id) if query_project_id else None
+    )
     has_elements = False
     if query_commit_id:
-        sample = get(f"{api}/projects/{query_project_id}/commits/{query_commit_id}/elements") or []
+        sample = (
+            get(f"{api}/projects/{query_project_id}/commits/{query_commit_id}/elements")
+            or []
+        )
         has_elements = len(sample) > 0
 
     if not has_elements:
-        warn("User project has 0 elements (TextualRepresentation commit) — using reference project for query demo")
+        warn(
+            "User project has 0 elements (TextualRepresentation commit) — using reference project for query demo"
+        )
         query_project_id = REFERENCE_PROJECT_ID
         query_commit_id = get_head_commit(api, query_project_id)
 
@@ -263,7 +291,10 @@ def main() -> None:
         ok(f"Querying project {query_project_id[:8]}…  commit {query_commit_id[:8]}…")
 
         # Always show a breakdown of all types present, then optionally filter
-        all_elements = get(f"{api}/projects/{query_project_id}/commits/{query_commit_id}/elements") or []
+        all_elements = (
+            get(f"{api}/projects/{query_project_id}/commits/{query_commit_id}/elements")
+            or []
+        )
         by_type: dict[str, list[dict]] = {}
         for el in all_elements:
             t = el.get("@type", "Unknown")
@@ -291,7 +322,11 @@ def main() -> None:
         typed_els, server_supported = query_elements_by_type(
             api, query_project_id, query_commit_id, query_type, all_elements
         )
-        method = "server-side POST query-results" if server_supported else "client-side fallback (POST query-results returned 404)"
+        method = (
+            "server-side POST query-results"
+            if server_supported
+            else "client-side fallback (POST query-results returned 404)"
+        )
         print(f"  Method : {method}")
         if typed_els:
             ok(f"  {len(typed_els)} element(s) of type {query_type}")

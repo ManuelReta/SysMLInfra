@@ -39,17 +39,11 @@ Adapting for a new project:
     This script is generic and requires no modification.
 """
 
-import argparse
 import os
 import sys
 
-# ---------------------------------------------------------------------------
-# Path helpers
-# ---------------------------------------------------------------------------
-
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MANIFEST  = os.path.join(REPO_ROOT, "sysml-project.yml")
-
+from scripts.utils import dry_runner
+from sys_infra.environment import EXAMPLES_BILGEPUMP_DIR
 
 # ---------------------------------------------------------------------------
 # sysml-project.yml reader — no pyyaml dependency
@@ -59,6 +53,7 @@ MANIFEST  = os.path.join(REPO_ROOT, "sysml-project.yml")
 # no multi-line strings, no nested dicts under layers) so a line-by-line
 # parser is entirely sufficient and avoids an extra dependency.
 # ---------------------------------------------------------------------------
+
 
 def read_manifest(path: str) -> tuple:
     """Return (name, layers, validation_layers) from sysml-project.yml.
@@ -95,20 +90,25 @@ def read_manifest(path: str) -> tuple:
 # Dry-run: verify all layer files exist and print the execution order
 # ---------------------------------------------------------------------------
 
-def dry_run(name: str, layers: list, validation_layers: list | None = None) -> None:
+
+""" def dry_runner(
+    name: str, layers: list, project_dir: str, validation_layers: list | None = None
+) -> None:
     print(f"DRY RUN  —  project: {name}")
     vl_set = set(validation_layers) if validation_layers else set(layers)
     print(f"  {len(layers)} layer(s) in manifest order")
     if validation_layers is not None:
-        excluded = [l for l in layers if l not in vl_set]
+        excluded = [layer for layer in layers if layer not in vl_set]
         if excluded:
-            print(f"  {len(excluded)} layer(s) excluded from kernel CI (negative tests — validated by Safety.ipynb):")
+            print(
+                f"  {len(excluded)} layer(s) excluded from kernel CI (negative tests — validated by Safety.ipynb):"
+            )
             for e in excluded:
                 print(f"    - {e}")
     print()
     missing = []
     for i, fname in enumerate(layers, 1):
-        path = os.path.join(REPO_ROOT, fname)
+        path = os.path.join(project_dir, fname)
         if os.path.exists(path):
             size = os.path.getsize(path)
             print(f"  [{i}] {fname:<40} {size:>7} bytes  OK")
@@ -116,17 +116,20 @@ def dry_run(name: str, layers: list, validation_layers: list | None = None) -> N
             print(f"  [{i}] {fname:<40}           MISSING")
             missing.append(fname)
     if missing:
-        print(f"\nERROR: {len(missing)} layer file(s) not found in repository root.",
-              file=sys.stderr)
+        print(
+            f"\nERROR: {len(missing)} layer file(s) not found in repository root.",
+            file=sys.stderr,
+        )
         sys.exit(1)
-    print("\nDry run passed — all layer files present.")
+    print("\nDry run passed — all layer files present.") """
 
 
 # ---------------------------------------------------------------------------
 # Full validation via nbclient
 # ---------------------------------------------------------------------------
 
-def validate(name: str, layers: list) -> None:
+
+def validate(name: str, layers: list, project_dir: str) -> None:
     # Import here so --dry-run works even without nbformat/nbclient installed.
     try:
         import nbformat  # noqa: PLC0415
@@ -144,7 +147,7 @@ def validate(name: str, layers: list) -> None:
         sys.exit(1)
 
     # Validate all layer files exist before starting the kernel
-    missing = [f for f in layers if not os.path.exists(os.path.join(REPO_ROOT, f))]
+    missing = [f for f in layers if not os.path.exists(os.path.join(project_dir, f))]
     if missing:
         print(f"ERROR: layer file(s) not found: {missing}", file=sys.stderr)
         sys.exit(1)
@@ -163,20 +166,21 @@ def validate(name: str, layers: list) -> None:
     # ------------------------------------------------------------------
     try:
         import jupyter_client  # noqa: PLC0415
+
         installed_kernels = jupyter_client.kernelspec.find_kernel_specs()
     except Exception:
         installed_kernels = {}
 
-    kernel_name = None
+    kernel_name: str | None = None
     # Prefer exact matches: 'sysml2' first, then 'sysml', then any sysml* key
     for candidate in ("sysml2", "sysml"):
         if candidate in installed_kernels:
             kernel_name = candidate
             break
     if kernel_name is None:
-        for k in installed_kernels:
-            if "sysml" in k.lower():
-                kernel_name = k
+        for kernel in installed_kernels:
+            if "sysml" in kernel.lower():
+                kernel_name = kernel
                 break
     if kernel_name is None:
         print(
@@ -196,7 +200,7 @@ def validate(name: str, layers: list) -> None:
         "name": kernel_name,
     }
     for layer_file in layers:
-        with open(os.path.join(REPO_ROOT, layer_file)) as fh:
+        with open(os.path.join(project_dir, layer_file)) as fh:
             source = fh.read()
         nb.cells.append(nbformat.v4.new_code_cell(source))
 
@@ -218,13 +222,13 @@ def validate(name: str, layers: list) -> None:
         nb,
         timeout=300,
         kernel_name=kernel_name,
-        resources={"metadata": {"path": REPO_ROOT}},
+        resources={"metadata": {"path": project_dir}},
     )
 
     print("Starting SysML v2 kernel...")
     try:
         client.execute()
-    except CellExecutionError as exc:
+    except CellExecutionError:
         # Find which cell(s) have error outputs and print clean diagnostics
         print("\nVALIDATION FAILED\n", file=sys.stderr)
         for i, cell in enumerate(nb.cells):
@@ -234,7 +238,7 @@ def validate(name: str, layers: list) -> None:
             if cell_errors:
                 print(f"  Layer [{i + 1}/{len(layers)}]: {layers[i]}", file=sys.stderr)
                 for err in cell_errors:
-                    ename  = err.get("ename", "Error")
+                    ename = err.get("ename", "Error")
                     evalue = err.get("evalue", "")
                     print(f"  {ename}: {evalue}", file=sys.stderr)
                     for tb_line in err.get("traceback", []):
@@ -242,6 +246,7 @@ def validate(name: str, layers: list) -> None:
                         clean = tb_line
                         try:
                             import re
+
                             clean = re.sub(r"\x1b\[[0-9;]*m", "", tb_line)
                         except Exception:
                             pass
@@ -260,7 +265,9 @@ def validate(name: str, layers: list) -> None:
         if any(o.get("output_type") == "error" for o in cell.get("outputs", []))
     ]
     if errors:
-        print("\nVALIDATION FAILED — error output detected in cells:\n", file=sys.stderr)
+        print(
+            "\nVALIDATION FAILED — error output detected in cells:\n", file=sys.stderr
+        )
         for layer_file, cell in errors:
             print(f"  {layer_file}", file=sys.stderr)
         sys.exit(1)
@@ -276,47 +283,26 @@ def validate(name: str, layers: list) -> None:
         summary = f" ({'; '.join(stream_lines)})" if stream_lines else ""
         print(f"  [{i + 1}/{len(layers)}] {layers[i]}  OK{summary}")
 
-    print(f"\nVALIDATION PASSED — {len(layers)}/{len(layers)} layers compiled successfully.")
+    print(
+        f"\nVALIDATION PASSED — {len(layers)}/{len(layers)} layers compiled successfully."
+    )
 
 
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
-
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Headless SysML v2 model validator — reads sysml-project.yml",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__,
-    )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Verify all layer files exist and print the execution plan; do not start the kernel",
-    )
-    parser.add_argument(
-        "--all-layers",
-        action="store_true",
-        help=(
-            "Run the kernel against ALL layers (ignores validation_layers). "
-            "Expect failures from FMEA/UQ negative-test analysis defs."
-        ),
-    )
-    parser.add_argument(
-        "--manifest",
-        default=MANIFEST,
-        metavar="PATH",
-        help=f"Path to sysml-project.yml (default: {MANIFEST})",
-    )
-    args = parser.parse_args()
-
-    if not os.path.exists(args.manifest):
-        print(f"ERROR: manifest not found: {args.manifest}\n"
-              "Create sysml-project.yml at the repository root.", file=sys.stderr)
+def run_validate(project_dir, dry_run=False, all_layers=False) -> None:
+    print(f"Running SysML v2 kernel validation for project at: {project_dir}\n")
+    manifest_path = os.path.join(project_dir, "sysml-project.yml")
+    if not os.path.exists(project_dir):
+        print(
+            f"ERROR: manifest not found: {project_dir}\n"
+            "Create sysml-project.yml at the repository root.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
-    name, layers, validation_layers = read_manifest(args.manifest)
-
+    name, layers, validation_layers = read_manifest(path=manifest_path)
     if not layers:
         print("ERROR: sysml-project.yml contains no 'layers' entries.", file=sys.stderr)
         sys.exit(1)
@@ -325,23 +311,31 @@ def main() -> None:
     # --dry-run always uses the full 'layers' list (checks all files exist).
     # --all-layers overrides validation_layers (useful for local debugging).
     # Default: use validation_layers if present, else fall back to layers.
-    if args.dry_run:
-        dry_run(name, layers, validation_layers)
-    elif args.all_layers:
+    if dry_run:
+        dry_runner(name, layers, project_dir, validation_layers)
+        print("after dry")
+    elif all_layers:
         print("NOTE: --all-layers set — running kernel on ALL layers.")
-        print("      FMEA/UQ negative-test violations are expected and will cause failures.\n")
-        validate(name, layers)
+        print(
+            "      FMEA/UQ negative-test violations are expected and will cause failures.\n"
+        )
+        validate(name, layers, project_dir)
+        print("after all-layers validate")
     else:
         kernel_layers = validation_layers if validation_layers is not None else layers
         if validation_layers is not None and len(validation_layers) < len(layers):
-            excluded = [l for l in layers if l not in set(validation_layers)]
-            print(f"NOTE: {len(excluded)} layer(s) excluded from kernel CI "
-                  f"(negative tests — see validation_layers in sysml-project.yml):")
+            excluded = [
+                layer for layer in layers if layer not in set(validation_layers)
+            ]
+            print(
+                f"NOTE: {len(excluded)} layer(s) excluded from kernel CI "
+                f"(negative tests — see validation_layers in sysml-project.yml):"
+            )
             for e in excluded:
                 print(f"      - {e}")
             print()
-        validate(name, kernel_layers)
+        validate(name, kernel_layers, project_dir)
 
 
 if __name__ == "__main__":
-    main()
+    run_validate(project_dir=EXAMPLES_BILGEPUMP_DIR, dry_run=False, all_layers=False)

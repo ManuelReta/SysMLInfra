@@ -48,6 +48,8 @@ jobs:
         run: uv python install
 
       - name: Run unit tests
+        env:
+          REPO_ROOT: ${{ github.workspace }}
         run: uv run pytest tests/ -x --tb=short -q
 
   # ---------------------------------------------------------------------------
@@ -79,8 +81,18 @@ jobs:
       - name: Install the project
         run: uv sync --locked --all-extras --dev
 
+      - name: Mypy type checking
+        run: uv run pre-commit run mypy  
+
+      - name: Ruff format (check)
+        run: uvx ruff format --check --exclude "**/*.ipynb"
+      - name: Ruff lint (check)
+        run: uvx ruff check --output-format=github --exclude "**/*.ipynb"
+
       - name: Verify manifest and layer files (dry run)
-        run: uv run python scripts/ci_kernel_validate.py --dry-run
+        env: 
+          REPO_ROOT: ${{ github.workspace }}
+        run: uv run python -m sys_infra.entry validate --dry-run
 
   # ---------------------------------------------------------------------------
   # Job 2: validate-sysml — full semantic validation via SysML v2 kernel.
@@ -144,7 +156,8 @@ jobs:
           mamba install -y -c conda-forge \
             "jupyter-sysml-kernel=0.58.0" \
             "nbclient>=0.10" \
-            "nbformat>=5.9"
+            "nbformat>=5.9" \
+            "python-dotenv>=1.2.2"
 
       # -----------------------------------------------------------------------
       # 5. List registered Jupyter kernels so the exact name is visible in
@@ -171,4 +184,6 @@ jobs:
       # -----------------------------------------------------------------------
       - name: Run SysML v2 kernel validation
         shell: bash -el {0}
-        run: python scripts/ci_kernel_validate.py
+        env: 
+          REPO_ROOT: ${{ github.workspace }}
+        run: python -m scripts.ci_kernel_validate

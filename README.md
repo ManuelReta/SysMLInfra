@@ -42,16 +42,16 @@ if the kernel cannot be registered.**
 
 ```bash
 # Verify the bilge pump reference model against all requirements:
-python verify.py
+uv run python -m sys_infra.entry verify
 
 # Run the negative test — inject a pump failure:
-python verify.py --negative
+uv run python -m sys_infra.entry verify --negative
 
 # Check all layer files exist without running the kernel:
-python verify.py --dry-run
+uv run python -m sys_infra.entry verify --dry-run
 
 # Run unit and model tests (no kernel required):
-pytest tests/ -v
+uv run pytest tests/ -v
 ```
 
 Expected output:

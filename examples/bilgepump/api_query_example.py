@@ -95,6 +95,7 @@ REFERENCE_PROJECT_ID = "00364405-201d-4866-9c6a-96f57c200c2a"
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
+
 def get(url: str) -> list | dict | None:
     r = requests.get(url, timeout=10)
     r.raise_for_status()
@@ -115,6 +116,7 @@ def head_commit(api: str, project_id: str) -> str:
 
 # ── query patterns ────────────────────────────────────────────────────────────
 
+
 def list_all_elements(api: str, project_id: str, commit_id: str) -> list[dict]:
     """
     Pattern 1 — GET all elements in a commit.
@@ -127,7 +129,9 @@ def list_all_elements(api: str, project_id: str, commit_id: str) -> list[dict]:
     return get(f"{api}/projects/{project_id}/commits/{commit_id}/elements") or []
 
 
-def get_element_by_id(api: str, project_id: str, commit_id: str, element_id: str) -> dict:
+def get_element_by_id(
+    api: str, project_id: str, commit_id: str, element_id: str
+) -> dict:
     """
     Pattern 2 — GET a single element by its @id.
 
@@ -136,7 +140,10 @@ def get_element_by_id(api: str, project_id: str, commit_id: str, element_id: str
 
     GET /projects/{pid}/commits/{cid}/elements/{eid}
     """
-    return get(f"{api}/projects/{project_id}/commits/{commit_id}/elements/{element_id}") or {}
+    return (
+        get(f"{api}/projects/{project_id}/commits/{commit_id}/elements/{element_id}")
+        or {}
+    )
 
 
 class QueryEndpointUnavailable(Exception):
@@ -247,14 +254,19 @@ def query_named_elements(
 
 # ── main demo ─────────────────────────────────────────────────────────────────
 
+
 def _filter(elements: list[dict], type_name: str) -> list[dict]:
     return [el for el in elements if el.get("@type") == type_name]
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("--api", default=API_BASE)
-    parser.add_argument("--project", default=None, help="Project ID (must be kernel-committed)")
+    parser.add_argument(
+        "--project", default=None, help="Project ID (must be kernel-committed)"
+    )
     args = parser.parse_args()
 
     api = args.api.rstrip("/")
@@ -262,7 +274,7 @@ def main() -> None:
 
     # ── [1] Connectivity ─────────────────────────────────────────────────────
     print("\n[1] API connectivity")
-    get(f"{api}/projects")   # raises on failure
+    get(f"{api}/projects")  # raises on failure
     project = get(f"{api}/projects/{project_id}")
     commit_id = head_commit(api, project_id)
     print(f"    Server  : {api}")
@@ -273,13 +285,17 @@ def main() -> None:
     print("\n[2] Element inventory  (GET …/elements)")
     elements = list_all_elements(api, project_id, commit_id)
     if not elements:
-        print("    ⚠  0 elements — project was committed as TextualRepresentation, not via kernel.")
+        print(
+            "    ⚠  0 elements — project was committed as TextualRepresentation, not via kernel."
+        )
         print("       Use %publish in Analysis.ipynb, then re-run.")
         sys.exit(0)
 
     by_type: dict[str, int] = {}
     for el in elements:
-        by_type[el.get("@type", "Unknown")] = by_type.get(el.get("@type", "Unknown"), 0) + 1
+        by_type[el.get("@type", "Unknown")] = (
+            by_type.get(el.get("@type", "Unknown"), 0) + 1
+        )
 
     print(f"    {len(elements)} elements total")
     print(f"    {'Count':>6}  Type")
@@ -294,7 +310,11 @@ def main() -> None:
     # non-empty relatedElement refs.
     print("\n[3] Cross-element connectivity  (GET …/elements/{id})")
     connector = next(
-        (el for el in elements if el.get("@type") in ("BindingConnectorAsUsage", "BindingConnector")),
+        (
+            el
+            for el in elements
+            if el.get("@type") in ("BindingConnectorAsUsage", "BindingConnector")
+        ),
         None,
     )
     if connector is None:
@@ -328,23 +348,38 @@ def main() -> None:
             # In some API builds the connector fields are unpopulated stubs.
             # Navigate via OwningMembership to show what the connector belongs to.
             owner_memberships = [
-                el for el in elements
+                el
+                for el in elements
                 if el.get("@type") == "OwningMembership"
                 and isinstance(el.get("ownedMemberElement"), dict)
                 and el["ownedMemberElement"].get("@id") == detail["@id"]
             ]
             if owner_memberships:
                 om = owner_memberships[0]
-                owner_ns = om.get("membershipOwningNamespace") or om.get("owningRelatedElement")
+                owner_ns = om.get("membershipOwningNamespace") or om.get(
+                    "owningRelatedElement"
+                )
                 owner_id = (owner_ns or {}).get("@id", "?")
                 # Try to resolve the owner's name
-                owner_detail = get_element_by_id(api, project_id, commit_id, owner_id) if owner_id != "?" else {}
-                owner_name = owner_detail.get("qualifiedName") or owner_detail.get("name") or owner_id[:8] + "…"
+                owner_detail = (
+                    get_element_by_id(api, project_id, commit_id, owner_id)
+                    if owner_id != "?"
+                    else {}
+                )
+                owner_name = (
+                    owner_detail.get("qualifiedName")
+                    or owner_detail.get("name")
+                    or owner_id[:8] + "…"
+                )
                 print(f"    Connector belongs to : {owner_name}")
-                print(f"    (source/target fields unpopulated in this API build — "
-                      f"connector identity is confirmed via OwningMembership edge)")
+                print(
+                    "    (source/target fields unpopulated in this API build — "
+                    "connector identity is confirmed via OwningMembership edge)"
+                )
             else:
-                print(f"    (connector stub — no source/target or ownership edge resolved)")
+                print(
+                    "    (connector stub — no source/target or ownership edge resolved)"
+                )
 
         ns = detail.get("owningNamespace") or detail.get("membershipOwningNamespace")
         if isinstance(ns, dict):
@@ -362,10 +397,20 @@ def main() -> None:
         target_el = named_elements[0]
         full = get_element_by_id(api, project_id, commit_id, target_el["@id"])
         name = full.get("name") or full.get("declaredName")
-        print(f"    Element : {full.get('@type')}  name={name!r}  id={full['@id'][:8]}…")
+        print(
+            f"    Element : {full.get('@type')}  name={name!r}  id={full['@id'][:8]}…"
+        )
         # Show a small set of meaningful, non-null scalar fields
-        interesting = ["qualifiedName", "isAbstract", "isLibraryElement", "visibility",
-                       "value", "direction", "isOrdered", "isUnique"]
+        interesting = [
+            "qualifiedName",
+            "isAbstract",
+            "isLibraryElement",
+            "visibility",
+            "value",
+            "direction",
+            "isOrdered",
+            "isUnique",
+        ]
         shown = 0
         for k in interesting:
             v = full.get(k)
@@ -373,7 +418,9 @@ def main() -> None:
                 print(f"    {k:<30} {json.dumps(v)}")
                 shown += 1
         if shown == 0:
-            print("    (all scalar fields are null — element has only graph-edge fields)")
+            print(
+                "    (all scalar fields are null — element has only graph-edge fields)"
+            )
 
     # ── [5] Lookup by name — prove the store is queryable ───────────────────
     # Take the first named element found above, then re-find it purely by
@@ -383,20 +430,32 @@ def main() -> None:
     if not named_elements:
         print("    ⚠  No named elements available to demonstrate.")
     else:
-        target_name = named_elements[0].get("name") or named_elements[0].get("declaredName")
-        matches = [el for el in elements
-                   if el.get("name") == target_name or el.get("declaredName") == target_name]
+        target_name = named_elements[0].get("name") or named_elements[0].get(
+            "declaredName"
+        )
+        matches = [
+            el
+            for el in elements
+            if el.get("name") == target_name or el.get("declaredName") == target_name
+        ]
         print(f"    Looking for name={target_name!r} in {len(elements)} elements…")
         if matches:
             for m in matches:
                 print(f"    FOUND  @type={m.get('@type')}  @id={m['@id']}")
         else:
-            print(f"    NOT FOUND — name {target_name!r} does not exist in this commit.")
+            print(
+                f"    NOT FOUND — name {target_name!r} does not exist in this commit."
+            )
         # Now prove a non-existent name returns nothing
         fake = "__nonexistent_element_xyz__"
-        no_match = [el for el in elements
-                    if el.get("name") == fake or el.get("declaredName") == fake]
-        print(f"    Looking for name={fake!r}…  → {len(no_match)} results (expected: 0)  ✓")
+        no_match = [
+            el
+            for el in elements
+            if el.get("name") == fake or el.get("declaredName") == fake
+        ]
+        print(
+            f"    Looking for name={fake!r}…  → {len(no_match)} results (expected: 0)  ✓"
+        )
 
 
 if __name__ == "__main__":
