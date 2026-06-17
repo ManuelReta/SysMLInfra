@@ -373,12 +373,12 @@ def main() -> None:
                 )
                 print(f"    Connector belongs to : {owner_name}")
                 print(
-                    f"    (source/target fields unpopulated in this API build — "
-                    f"connector identity is confirmed via OwningMembership edge)"
+                    "    (source/target fields unpopulated in this API build — "
+                    "connector identity is confirmed via OwningMembership edge)"
                 )
             else:
                 print(
-                    f"    (connector stub — no source/target or ownership edge resolved)"
+                    "    (connector stub — no source/target or ownership edge resolved)"
                 )
 
         ns = detail.get("owningNamespace") or detail.get("membershipOwningNamespace")
