@@ -56,7 +56,7 @@ jobs:
         run: uv sync --all-groups
 
       - name: Build the docker-compose stack
-        run: docker-compose up ---build --detach
+        run: docker compose up ---build --detach
 
       # -----------------------------------------------------------------------
       # 3. Publish: run commit.sh which reads sysml-project.yml for the layer
