@@ -69,6 +69,12 @@ def create_parser() -> argparse.ArgumentParser:
     verify.add_argument("--publish", action="store_true")
     verify.add_argument("--z3", action="store_true")
     verify.add_argument("--live", metavar="CONFIG")
+    verify.add_argument(
+        "--published",
+        action="store_true",
+        help="Verify against the published model's kernel verdicts "
+             "(sysml_assertions table) instead of re-evaluating locally.",
+    )
 
     # =========================================================
     # SENSOR
@@ -141,6 +147,7 @@ def main() -> None:
             z3=args.z3,
             live=args.live,
             verbose=args.verbose,
+            published=args.published,
         )
 
     elif args.command == "sensor":

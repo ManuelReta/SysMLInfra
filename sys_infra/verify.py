@@ -228,8 +228,89 @@ def _run_fallback(
     return results
 
 
-# ── Kernel %eval helper ───────────────────────────────────────────────────────
+# ── Option B: verify against the PUBLISHED model (sysml_assertions table) ─────
+#
+# The model no longer carries ``bind path = value;`` statements (the old text-
+# commit pipeline). Verification verdicts now come from computed Boolean
+# attributes that the SysML v2 kernel evaluates during publish; the pipeline
+# (mons_wp1/materialize_sysml_values.py) stores those kernel verdicts in the
+# ``sysml_assertions`` table of the local sysml2 database. ``--published`` reads
+# those authoritative verdicts instead of re-deriving them by regex/eval — so
+# verify.py keeps working without any bind statements to parse.
 
+_DB = dict(
+    host=os.environ.get("SYSML_DB_HOST", "127.0.0.1"),
+    port=int(os.environ.get("SYSML_DB_PORT", "5432")),
+    dbname=os.environ.get("SYSML_DB_NAME", "sysml2"),
+    user=os.environ.get("SYSML_DB_USER", "postgres"),
+    password=os.environ.get("SYSML_DB_PASSWORD", "mysecretpassword"),
+)
+
+
+def _run_published(negative: bool, want_all: bool) -> list[dict]:
+    """Read kernel-evaluated verdicts from the published ``sysml_assertions``
+    table and return them in the standard result-dict shape.
+
+    Filtering mirrors the kernel/fallback modes:
+        default     -> positive functional checks (kind='positive')
+        --negative  -> fault-injection checks (kind='negative')
+        --all       -> every assertion (positive + negative + UQ)
+    """
+    try:
+        import psycopg2  # noqa: PLC0415
+    except ImportError:
+        print(red("ERROR: psycopg2 not installed — cannot read published assertions."))
+        print("  Install CI dependencies:  (cd SysMLInfra && uv sync)")
+        sys.exit(2)
+
+    try:
+        conn = psycopg2.connect(**_DB)
+    except Exception as exc:
+        print(red(f"ERROR: cannot connect to sysml2 database ({exc})."))
+        print("  Is the stack up? Publish first: mons_wp1/publish_bilgepump.sh")
+        sys.exit(2)
+
+    try:
+        with conn, conn.cursor() as cur:
+            cur.execute("SELECT to_regclass('public.sysml_assertions')")
+            if cur.fetchone()[0] is None:
+                print(red("ERROR: sysml_assertions table not found."))
+                print("  Build it: mons_wp1/publish_bilgepump.sh  (publish + materialize)")
+                sys.exit(2)
+            sql = ("SELECT assertion, requirement, kind, expected, result_bool, "
+                   "status, note FROM sysml_assertions")
+            if want_all:
+                params: tuple = ()
+            elif negative:
+                sql += " WHERE kind = %s"
+                params = ("negative",)
+            else:
+                sql += " WHERE kind = %s"
+                params = ("positive",)
+            sql += " ORDER BY layer, assertion"
+            cur.execute(sql, params)
+            rows = cur.fetchall()
+    finally:
+        conn.close()
+
+    results: list[dict] = []
+    for assertion, requirement, kind, expected, result_bool, status, note in rows:
+        results.append(
+            {
+                "requirement": assertion,
+                # ``satisfied`` reflects the kernel's actual verdict so the
+                # SATISFIED/VIOLATED display and exit code stay meaningful;
+                # negative (fault) checks are VIOLATED by design.
+                "satisfied": result_bool,
+                "expr": f"{requirement} [{kind}, expected={expected}, {status}]",
+                "label": note or assertion,
+                "source": "published:sysml_assertions",
+            }
+        )
+    return results
+
+
+# ── Kernel %eval helper ───────────────────────────────────────────────────────
 
 def _build_kernel_eval_cells(
     layer_paths: list[str],
@@ -564,6 +645,10 @@ def _print_results(
     sources = {r.get("source") for r in results}
     if sources == {"kernel:%eval"}:
         section_label = "Requirement evaluation  [engine: SysML kernel %eval]"
+    elif sources == {"published:sysml_assertions"}:
+        section_label = (
+            "Requirement evaluation  [engine: published kernel %eval verdicts]"
+        )
     elif (
         not sources
         or sources == {None}
@@ -979,6 +1064,7 @@ def run_verify(
     z3,
     live,
     verbose,
+    published=False,
 ) -> None:
     print("Using project: ", project_dir)
 
@@ -1018,6 +1104,26 @@ def run_verify(
     # Dry-run: always uses full layers list
     if dry_run:
         dry_runner(project_name, all_layers, project_dir, validation_layers)
+
+    # ── Option B: verify against the published model (sysml_assertions) ────────
+    if published:
+        mode_label = (
+            "all assertions" if all
+            else ("negative (fault injections)" if negative else "positive functional")
+        )
+        _print_header(
+            project_name, mode_label,
+            "Published model — kernel %eval verdicts (sysml_assertions table)",
+        )
+        results = _run_published(negative, all)
+        if not results:
+            print(yellow("\n  No matching assertions in sysml_assertions for this mode."))
+            print(dim("  Publish first: mons_wp1/publish_bilgepump.sh"))
+            sys.exit(2)
+        all_pass, violated = _print_results(results, show_expr=verbose)
+        _save_results(results, "negative" if negative else "positive",
+                      "published:sysml_assertions")
+        sys.exit(0 if all_pass else 1)
 
     # ── Live sensor mode ───────────────────────────────────────────────────────
     _live_bind_values: dict | None = None

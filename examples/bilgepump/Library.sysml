@@ -2,22 +2,26 @@
 // BilgePump::Library
 // Layer: Library
 // Purpose: Pure definitions only — no part usages, no connections.
-//          Every component in the bilge pump system is defined here as a
-//          part def with typed ports and attributes. Architecture, Requirements,
-//          and Analysis layers import this package and never re-define types.
+// Every component in the bilge pump system is defined here as a
+// part def with typed ports and attributes. Architecture, Requirements,
+// and Analysis layers import this package and never re-define types.
 //
 // External engineering tool context (hypothetical integrations):
-//   - Sensor calibration DB  → provides waterLevel range and accuracy specs
-//   - Simulink/Stateflow     → provides PumpController logic model
-//   - IEC 61850 power bus    → provides PowerSupply nominal voltage profile
-//   - CFD simulation tool    → provides BilgePumpA/B flow rate & efficiency curves
-//   - CAD (CATIA/SolidWorks) → provides physical envelope / strainer sizing
-//   - P&ID tool              → provides DischargeLine pipe loss coefficients
-//   - IEC 60945              → provides AlarmSystem activation delay standards
-//   - HMI design tool        → provides OperatorInterface display/override spec
+// - Sensor calibration DB  → provides waterLevel range and accuracy specs
+// - Simulink/Stateflow     → provides PumpController logic model
+// - IEC 61850 power bus    → provides PowerSupply nominal voltage profile
+// - CFD simulation tool    → provides BilgePumpA/B flow rate & efficiency curves
+// - CAD (CATIA/SolidWorks) → provides physical envelope / strainer sizing
+// - P&ID tool              → provides DischargeLine pipe loss coefficients
+// - IEC 60945              → provides AlarmSystem activation delay standards
+// - HMI design tool        → provides OperatorInterface display/override spec
 // =============================================================================
 
-package 'BilgePump::Library' {
+package BilgePump_Library {
+    // ScalarValues provides the primitive types Real, String, Boolean used by
+    // the attribute/port definitions below. Required for SysML v2 kernel
+    // validation and %publish (the API stores typed elements, not just text).
+    private import ScalarValues::*;
 
     // -------------------------------------------------------------------------
     // Attribute Definitions
@@ -52,7 +56,7 @@ package 'BilgePump::Library' {
     // --- Level signal: Sensor → Controller ---
     // Carries the raw water-level measurement as a scalar.
     // In a real vessel integration, this maps to a 4–20 mA analog loop
-    // or an NMEA 2000 PGN signal from the vessel sensor bus. 
+    // or an NMEA 2000 PGN signal from the vessel sensor bus.
     port def LevelSignalPort {
         attribute waterLevel : Real;
     }
@@ -62,7 +66,7 @@ package 'BilgePump::Library' {
     // SOURCE (out): PumpController firmware model (Simulink discrete-event output)
     // DEST (in):    Pump motor drive / VFD firmware
     port def PumpControlPort {
-        attribute command : String;  // "START" | "STOP" | "FAULT"
+        attribute command : String; // "START" | "STOP" | "FAULT"
     }
 
     // --- Electrical power: PowerSupply → Pump ---
@@ -70,8 +74,8 @@ package 'BilgePump::Library' {
     // SOURCE: Vessel power management system (IEC 61850 GOOSE message)
     // DEST:   Pump motor drive; also feeds into load-shedding controller
     port def PowerPort {
-        attribute voltage       : Real;
-        attribute isEmergency   : Boolean;
+        attribute voltage : Real;
+        attribute isEmergency : Boolean;
     }
 
     // --- Fluid flow: Pump → DischargeLine ---
@@ -87,7 +91,7 @@ package 'BilgePump::Library' {
     // In a real system: encoded as a CAN/NMEA 2000 status word or Modbus register.
     // DEST: Voyage Data Recorder (VDR), bridge BNWAS display
     port def StatusPort {
-        attribute status : String;  // "NORMAL" | "PUMPING" | "FAULT" | "OVERRIDE"
+        attribute status : String; // "NORMAL" | "PUMPING" | "FAULT" | "OVERRIDE"
     }
 
     // --- Alarm trigger: Controller → AlarmSystem ---
@@ -117,20 +121,20 @@ package 'BilgePump::Library' {
     // Measures water accumulation depth in the bilge.
     // -------------------------------------------------------------------------
     // ENGINEERING INPUTS:
-    //   ← Sensor calibration certificate (accuracy class, temperature range)
-    //   ← Classification society approval cert (DNV/Lloyd's type approval)
+    // ← Sensor calibration certificate (accuracy class, temperature range)
+    // ← Classification society approval cert (DNV/Lloyd's type approval)
     // ENGINEERING OUTPUTS:
-    //   → PumpController (level signal, this model)
-    //   → SCADA / vessel management system (OPC-UA data point)
-    //   → NMEA 2000 vessel data bus (PGN 127501 binary switch bank)
+    // → PumpController (level signal, this model)
+    // → SCADA / vessel management system (OPC-UA data point)
+    // → NMEA 2000 vessel data bus (PGN 127501 binary switch bank)
     part def BilgeWaterSensor {
         // Output: water level to controller
         port levelOut : LevelSignalPort;
 
         // Current measured water level in metres
-        attribute waterLevel    : Real;
+        attribute waterLevel : Real;
         // Sensor accuracy class (e.g., 0.01 m resolution)
-        attribute accuracy_m    : Real;
+        attribute accuracy_m : Real;
     }
 
     // -------------------------------------------------------------------------
@@ -139,39 +143,39 @@ package 'BilgePump::Library' {
     // In practice, this is typically a PLC or dedicated bilge controller board.
     // -------------------------------------------------------------------------
     // ENGINEERING INPUTS:
-    //   ← BilgeWaterSensor level signal (this model)
-    //   ← OperatorInterface override command (this model)
-    //   ← Simulink/Stateflow control logic model (firmware code generation)
-    //   ← Classification society alarm logic spec (IEC 60945, DNV Rules Pt.4 Ch.6)
+    // ← BilgeWaterSensor level signal (this model)
+    // ← OperatorInterface override command (this model)
+    // ← Simulink/Stateflow control logic model (firmware code generation)
+    // ← Classification society alarm logic spec (IEC 60945, DNV Rules Pt.4 Ch.6)
     // ENGINEERING OUTPUTS:
-    //   → BilgePumpA / BilgePumpB start/stop commands (this model)
-    //   → AlarmSystem trigger (this model)
-    //   → OperatorInterface status (this model)
-    //   → CMMS fault logger (maintenance work order generation)
-    //   → SCADA historian (time-series event log)
+    // → BilgePumpA / BilgePumpB start/stop commands (this model)
+    // → AlarmSystem trigger (this model)
+    // → OperatorInterface status (this model)
+    // → CMMS fault logger (maintenance work order generation)
+    // → SCADA historian (time-series event log)
     part def PumpController {
         // Input: water level from sensor
-        port levelIn        : ~LevelSignalPort;
+        port levelIn : ~LevelSignalPort;
         // Output: pump A start/stop command
-        port pumpAControl   : PumpControlPort;
+        port pumpAControl : PumpControlPort;
         // Output: pump B start/stop command
-        port pumpBControl   : PumpControlPort;
+        port pumpBControl : PumpControlPort;
         // Output: system status to operator interface
-        port statusOut      : StatusPort;
+        port statusOut : StatusPort;
         // Output: alarm trigger to alarm system
-        port alarmOut       : AlarmPort;
+        port alarmOut : AlarmPort;
         // Input: manual override from operator
-        port overrideIn     : ~OverridePort;
+        port overrideIn : ~OverridePort;
 
         // Time from threshold breach to pump start command (seconds)
-        attribute responseTime_s    : Real;
+        attribute responseTime_s : Real;
         // Water level threshold at which pumping is triggered (metres)
-        attribute triggerLevel_m    : Real;
+        attribute triggerLevel_m : Real;
         // Time from Pump A fault detection to Pump B activation command (seconds)
         // SOURCE: Simulink/Stateflow timing model SIM-CTRL-001 §3.2
         // Normal failover: 0.8 s; delayed detection: 2.7 s; no failover: 9999.0 s
         // Required by BPS-REQ-006 (FailoverSwitchTimingRequirement)
-        attribute failoverTime_s    : Real;
+        attribute failoverTime_s : Real;
     }
 
     // -------------------------------------------------------------------------
@@ -180,23 +184,23 @@ package 'BilgePump::Library' {
     // Must maintain pump operation during main bus failure per SOLAS II-1.
     // -------------------------------------------------------------------------
     // ENGINEERING INPUTS:
-    //   ← Vessel power management system (IEC 61850 GOOSE — bus availability)
-    //   ← Electrical load analysis (power budget spreadsheet / ETAP model)
-    //   ← Emergency generator sizing calculation
+    // ← Vessel power management system (IEC 61850 GOOSE — bus availability)
+    // ← Electrical load analysis (power budget spreadsheet / ETAP model)
+    // ← Emergency generator sizing calculation
     // ENGINEERING OUTPUTS:
-    //   → BilgePumpA / BilgePumpB power rails (this model)
-    //   → Load shedding controller (IEC 61850 — priority group assignment)
-    //   → Vessel alarm panel (power failure indication)
+    // → BilgePumpA / BilgePumpB power rails (this model)
+    // → Load shedding controller (IEC 61850 — priority group assignment)
+    // → Vessel alarm panel (power failure indication)
     part def PowerSupply {
         // Output: power to pump A
-        port powerOutA      : PowerPort;
+        port powerOutA : PowerPort;
         // Output: power to pump B
-        port powerOutB      : PowerPort;
+        port powerOutB : PowerPort;
 
         // Nominal DC/AC bus voltage in volts
-        attribute nominalVoltage    : Real;
+        attribute nominalVoltage : Real;
         // True when emergency bus has taken over
-        attribute redundancyActive  : Boolean;
+        attribute redundancyActive : Boolean;
     }
 
     // -------------------------------------------------------------------------
@@ -204,27 +208,27 @@ package 'BilgePump::Library' {
     // Centrifugal or diaphragm pump for main bilge drainage.
     // -------------------------------------------------------------------------
     // ENGINEERING INPUTS:
-    //   ← CFD simulation tool: pump characteristic curve (H-Q curve, ANSYS or OpenFOAM)
-    //   ← CAD model: physical envelope / mounting interface (CATIA/SolidWorks STEP file)
-    //   ← Vendor test certificate: NPSH, efficiency at rated speed
+    // ← CFD simulation tool: pump characteristic curve (H-Q curve, ANSYS or OpenFOAM)
+    // ← CAD model: physical envelope / mounting interface (CATIA/SolidWorks STEP file)
+    // ← Vendor test certificate: NPSH, efficiency at rated speed
     // ENGINEERING OUTPUTS:
-    //   → DischargeLine flow (this model)
-    //   → CMMS run-hour counter (predictive maintenance trigger at 250 h)
-    //   → SCADA: flow rate telemetry (OPC-UA node)
+    // → DischargeLine flow (this model)
+    // → CMMS run-hour counter (predictive maintenance trigger at 250 h)
+    // → SCADA: flow rate telemetry (OPC-UA node)
     part def BilgePumpA {
         // Input: power from supply
-        port powerIn        : ~PowerPort;
+        port powerIn : ~PowerPort;
         // Input: start/stop command from controller
-        port controlIn      : ~PumpControlPort;
+        port controlIn : ~PumpControlPort;
         // Output: fluid flow to discharge line
-        port flowOut        : FluidFlowPort;
+        port flowOut : FluidFlowPort;
 
         // Volumetric flow rate at rated speed (m³/s)
-        attribute flowRate      : Real;
+        attribute flowRate : Real;
         // Hydraulic efficiency at operating point (0.0–1.0)
-        attribute efficiency    : Real;
+        attribute efficiency : Real;
         // Cumulative run hours (sourced from CMMS at model instantiation)
-        attribute runHours      : Real;
+        attribute runHours : Real;
     }
 
     // -------------------------------------------------------------------------
@@ -235,15 +239,15 @@ package 'BilgePump::Library' {
     // ENGINEERING INPUTS: same as BilgePumpA
     // ENGINEERING OUTPUTS: same as BilgePumpA
     part def BilgePumpB {
-        port powerIn        : ~PowerPort;
-        port controlIn      : ~PumpControlPort;
-        port flowOut        : FluidFlowPort;
+        port powerIn : ~PowerPort;
+        port controlIn : ~PumpControlPort;
+        port flowOut : FluidFlowPort;
 
-        attribute flowRate      : Real;
-        attribute efficiency    : Real;
-        attribute runHours      : Real;
+        attribute flowRate : Real;
+        attribute efficiency : Real;
+        attribute runHours : Real;
         // Flag confirming this unit is the designated redundant pump
-        attribute isRedundant   : Boolean;
+        attribute isRedundant : Boolean;
     }
 
     // -------------------------------------------------------------------------
@@ -251,23 +255,23 @@ package 'BilgePump::Library' {
     // Overboard discharge piping including strainer basket and check valves.
     // -------------------------------------------------------------------------
     // ENGINEERING INPUTS:
-    //   ← P&ID drawing tool: pipe routing, valve schedule (SmartPlant P&ID)
-    //   ← CAD: strainer basket sizing, pipe bore (CATIA Piping & Tubing)
-    //   ← Hydraulic calculation: Darcy-Weisbach friction factor per ISO 4185
+    // ← P&ID drawing tool: pipe routing, valve schedule (SmartPlant P&ID)
+    // ← CAD: strainer basket sizing, pipe bore (CATIA Piping & Tubing)
+    // ← Hydraulic calculation: Darcy-Weisbach friction factor per ISO 4185
     // ENGINEERING OUTPUTS:
-    //   → Overboard discharge (physical)
-    //   → MARPOL environmental compliance monitor (discharge rate < 15 ppm oily water)
-    //   → Port state control inspection record (oil content meter reading)
+    // → Overboard discharge (physical)
+    // → MARPOL environmental compliance monitor (discharge rate < 15 ppm oily water)
+    // → Port state control inspection record (oil content meter reading)
     part def DischargeLine {
         // Input: flow from pump A
-        port flowInA        : ~FluidFlowPort;
+        port flowInA : ~FluidFlowPort;
         // Input: flow from pump B
-        port flowInB        : ~FluidFlowPort;
+        port flowInB : ~FluidFlowPort;
 
         // Darcy-Weisbach pipe friction/loss factor (dimensionless)
-        attribute pipeLossFactor    : Real;
+        attribute pipeLossFactor : Real;
         // Strainer free-flow area (m²); sized from CAD
-        attribute strainerArea_m2   : Real;
+        attribute strainerArea_m2 : Real;
     }
 
     // -------------------------------------------------------------------------
@@ -276,24 +280,24 @@ package 'BilgePump::Library' {
     // and mirrored to the bridge alarm panel per IEC 60945 §4.3.
     // -------------------------------------------------------------------------
     // ENGINEERING INPUTS:
-    //   ← PumpController alarm trigger (this model)
-    //   ← IEC 60945 alarm standard: activation delay ≤ 2.0 s, sound level ≥ 75 dB
-    //   ← Classification society alarm table (DNV Rules Pt.4 Ch.6 Table 1)
+    // ← PumpController alarm trigger (this model)
+    // ← IEC 60945 alarm standard: activation delay ≤ 2.0 s, sound level ≥ 75 dB
+    // ← Classification society alarm table (DNV Rules Pt.4 Ch.6 Table 1)
     // ENGINEERING OUTPUTS:
-    //   → OperatorInterface notification (this model)
-    //   → Bridge BNWAS (bridge navigational watch alarm system)
-    //   → Voyage Data Recorder (VDR) alarm event log
-    //   → Shore-based fleet monitoring system (satellite AIS/IoT gateway)
+    // → OperatorInterface notification (this model)
+    // → Bridge BNWAS (bridge navigational watch alarm system)
+    // → Voyage Data Recorder (VDR) alarm event log
+    // → Shore-based fleet monitoring system (satellite AIS/IoT gateway)
     part def AlarmSystem {
         // Input: alarm condition from controller
-        port alarmIn        : ~AlarmPort;
+        port alarmIn : ~AlarmPort;
         // Output: notification to operator interface
-        port notifyOut      : AlarmPort;
+        port notifyOut : AlarmPort;
 
         // Delay from trigger to annunciation in seconds (must be ≤ 2.0)
         attribute activationDelay_s : Real;
         // True when alarm is currently sounding
-        attribute isActive          : Boolean;
+        attribute isActive : Boolean;
     }
 
     // -------------------------------------------------------------------------
@@ -302,25 +306,24 @@ package 'BilgePump::Library' {
     // Typically a touchscreen HMI or physical panel with indicator lights.
     // -------------------------------------------------------------------------
     // ENGINEERING INPUTS:
-    //   ← PumpController status (this model)
-    //   ← AlarmSystem notification (this model)
-    //   ← HMI design tool: screen layout, button mapping (Wonderware / FactoryTalk)
-    //   ← Human factors / ergonomics standard (ISO 11064 control room design)
+    // ← PumpController status (this model)
+    // ← AlarmSystem notification (this model)
+    // ← HMI design tool: screen layout, button mapping (Wonderware / FactoryTalk)
+    // ← Human factors / ergonomics standard (ISO 11064 control room design)
     // ENGINEERING OUTPUTS:
-    //   → PumpController override command (this model)
-    //   → Voyage Data Recorder (VDR): operator action log
-    //   → Vessel management system: maintenance event annotation
+    // → PumpController override command (this model)
+    // → Voyage Data Recorder (VDR): operator action log
+    // → Vessel management system: maintenance event annotation
     part def OperatorInterface {
         // Input: status from controller
-        port statusIn       : ~StatusPort;
+        port statusIn : ~StatusPort;
         // Input: notification from alarm system
-        port notifyIn       : ~AlarmPort;
+        port notifyIn : ~AlarmPort;
         // Output: manual override command to controller
-        port overrideOut    : OverridePort;
+        port overrideOut : OverridePort;
 
         // True when the operator has asserted a manual override
-        attribute overrideActive    : Boolean;
+        attribute overrideActive : Boolean;
     }
-
-}
+} // package BilgePump_Library
 // CI proof-of-concept trigger — Fri May  8 08:15:31 CEST 2026
