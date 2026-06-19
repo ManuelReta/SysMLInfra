@@ -13,6 +13,7 @@ dependencies = [
     "nbformat>=5.10.4",
     "networkx>=3.6.1",
     "opcua>=0.98.13",
+    "pandas>=3.0.3",
     "python-dotenv>=1.2.2",
     "requests>=2.33.1",
     "z3-solver>=4.16.0.0",

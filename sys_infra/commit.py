@@ -4,6 +4,7 @@ import json
 from typing import Any
 import requests
 from pathlib import Path
+import pandas as pd
 
 
 def get_host() -> str:
@@ -237,7 +238,284 @@ def get_project_info(
     return project, branch_id, commit_id
 
 
+def get_all_elements(base_url: str, project_id: str, commit_id: str):
+    url = (
+        f"{base_url}/projects/{project_id}/commits/{commit_id}/elements?page[size]=2000"
+    )
+    r = requests.get(url)
+    r.raise_for_status()
+    return r.json()
+
+
+def update_numeric_literal(
+    project_id: str,
+    branch_id: str,
+    updated: dict,
+    new_value: float,
+    previous_commit: str,
+    literal_id: str,
+):
+    payload = {
+        "@type": "Commit",
+        "branch": {"@id": branch_id},
+        "message": f"Update maxPressure to {new_value}",
+        "change": [
+            {
+                "@type": "DataVersion",
+                "payload": {
+                    "@id": literal_id,
+                    "@type": "LiteralRational",
+                    "value": new_value,
+                },
+                "identity": {"@id": literal_id},
+            },
+        ],
+        "previousCommit": {"@id": previous_commit},
+    }
+
+    r = requests.post(
+        f"{get_host()}/projects/{project_id}/commits",
+        headers={"Content-Type": "application/json"},
+        json=payload,
+    )
+
+    if not r.ok:
+        print(r.text)
+
+    r.raise_for_status()
+
+
+def update_target_parameter(
+    project_name: str, parameter_name: str, new_value: float, unit: str
+):
+    project, branch_id, commit_id = get_project_info(project_name=project_name)
+    # TODO You should also have to specify the component you are
+    #  interested in as there might be multiple parameters with
+    # the same name in different components.
+    target_parameter, target_unit = get_target_parameter(
+        project_id=project["@id"], commit_id=commit_id, part_name=parameter_name
+    )
+
+    if unit != target_unit["declaredShortName"]:
+        print(
+            f"Unit mismatch: provided unit {unit} does not match target parameter unit {target_unit['declaredShortName']}"
+        )
+        raise ValueError("Unit mismatch")
+    print(
+        f"Updating parameter {parameter_name} with id {target_parameter['@id']} to new value {new_value} {unit} from {target_parameter['value']} {target_unit['declaredShortName']}"
+    )
+
+    updated = target_parameter.copy()
+    updated["value"] = new_value
+
+    update_numeric_literal(
+        project_id=project["@id"],
+        branch_id=branch_id,
+        updated=updated,
+        new_value=new_value,
+        previous_commit=commit_id,
+        literal_id=target_parameter["@id"],
+    )
+
+
+def get_packages(project_id: str) -> pd.DataFrame:
+    host = get_host()
+    parts_tree_project_id = project_id
+
+    query_input = {
+        "@type": "Query",
+        "select": [
+            "@id",
+            "qualifiedName",
+            "name",
+            "owner",
+            "@type",
+            "owningNamespace",
+            "visibility",
+            "import",
+        ],
+        "where": {
+            "@type": "PrimitiveConstraint",
+            "operator": "=",
+            "property": "@type",
+            "value": ["Package"],
+        },
+    }
+
+    query_url = f"{host}/projects/{parts_tree_project_id}/query-results?page[size]=50"
+
+    query_response = requests.post(query_url, json=query_input)
+
+    if query_response.status_code == 200:
+        query_response_json = query_response.json()
+
+        df = pd.DataFrame(
+            {
+                "Package Name": [],
+                "Package ID": [],
+                "Owner": [],
+                "@type": [],
+                "owningNamespace": [],
+                "visibility": [],
+                "import": [],
+            }
+        )
+        for p in query_response_json:
+            df = pd.concat(
+                [
+                    df,
+                    pd.DataFrame(
+                        {
+                            "Package Name": [p["name"]],
+                            "Package ID": [p["@id"]],
+                            "Owner": [p.get("owner")],
+                            "@type": [p.get("@type")],
+                            "owningNamespace": [p.get("owningNamespace")],
+                            "visibility": [p.get("visibility")],
+                            "import": [p.get("import")],
+                        }
+                    ),
+                ],
+                ignore_index=True,
+            )
+    return df
+
+
+def find_parts_by_type(elements: list, part_type: str = "AttributeUsage") -> list:
+    return [e for e in elements if e["@type"] == part_type]
+
+
+def find_part_by_name(elements: list, name: str) -> list:
+    return [e for e in elements if e.get("declaredName") == name]
+
+
+def get_target_parameter(project_id: str, commit_id: str, part_name: str):
+    # TODO Do some checking that the paramer is in the correct package and maybe component.
+    _ = get_packages(project_id=project_id)
+
+    all_elements_in_project = get_all_elements(
+        base_url=get_host(), project_id=project_id, commit_id=commit_id
+    )
+    # TODO Duplicates should be removed below here.
+    candidate_parts_by_type = find_parts_by_type(
+        elements=all_elements_in_project, part_type="LiteralRational"
+    )
+
+    candidate_unit_attribute_usage_parts_by_type = find_parts_by_type(
+        elements=all_elements_in_project, part_type="AttributeUsage"
+    )
+    target_part_by_name = find_part_by_name(
+        elements=all_elements_in_project, name=part_name
+    )
+
+    # The candidate part might be in the candidate unit list so this is filtered out such that it wont be hit.
+    filtered_candidate_unit_attribute_usage_parts_by_type = [
+        x
+        for x in candidate_unit_attribute_usage_parts_by_type
+        if x not in target_part_by_name
+    ]
+
+    target_parameter = lookup(
+        all_elements_in_project, target_part_by_name, candidate_parts_by_type
+    )
+    target_unit = lookup(
+        all_elements_in_project,
+        target_part_by_name,
+        filtered_candidate_unit_attribute_usage_parts_by_type,
+    )
+    if len(target_parameter) != 1:
+        raise ValueError(
+            f"Expected exactly one target parameter, but found {len(target_parameter)}. Check if the parameter name is correct and unique."
+        )
+    if len(target_unit) != 1:
+        print(
+            f"Expected exactly one target unit, but found {len(target_unit)}. Parameter may not have a unit."
+        )
+        target_unit = [{"declaredShortName": None}]
+    return target_parameter[0], target_unit[0]
+
+
+def find_literal_rationals_from_part(start_element, elements_by_id, candidate_ids):
+    found = []
+    visited = set()
+
+    def recurse(element):
+        if not isinstance(element, dict):
+            return
+
+        el_id = element.get("@id")
+
+        # Ensure el_id is a string
+        if not isinstance(el_id, str):
+            return
+
+        if el_id in visited:
+            return
+
+        visited.add(el_id)
+
+        # Check if it's a match
+        if el_id in candidate_ids:
+            found.append(element)
+            return
+
+        # Traverse ownedRelationship
+        for rel_ref in element.get("ownedRelationship", []):
+            rel_id = rel_ref.get("@id") if isinstance(rel_ref, dict) else None
+            if not rel_id:
+                continue
+
+            rel = elements_by_id.get(rel_id)
+            if not rel:
+                continue
+
+            # xplore all references inside relationship
+            for key, value in rel.items():
+                # Case 1: single reference
+                if isinstance(value, dict):
+                    ref_id = value.get("@id")
+                    if isinstance(ref_id, str) and ref_id in elements_by_id:
+                        recurse(elements_by_id[ref_id])
+
+                # Case 2: list of references
+                elif isinstance(value, list):
+                    for v in value:
+                        if isinstance(v, dict):
+                            ref_id = v.get("@id")
+                            if isinstance(ref_id, str) and ref_id in elements_by_id:
+                                recurse(elements_by_id[ref_id])
+
+    recurse(start_element)
+    return found
+
+
+def lookup(all_elements_in_project, target_part_by_name, candidate_parts_by_type):
+    elements_by_id = {el["@id"]: el for el in all_elements_in_project}
+
+    candidate_ids = {el["@id"] for el in candidate_parts_by_type}
+    target_part = target_part_by_name[0]
+
+    matching_literals = find_literal_rationals_from_part(
+        target_part, elements_by_id, candidate_ids
+    )
+    return matching_literals
+
+
+def get_target_parameter_and_unit(project_name: str, parameter_name: str):
+    project, _, commit_id = get_project_info(project_name=project_name)
+
+    target_parameter, target_unit = get_target_parameter(
+        project_id=project["@id"], commit_id=commit_id, part_name=parameter_name
+    )
+    print(
+        f"Got parameter {parameter_name} (id: {target_parameter['@id']}): {target_parameter['value']} {target_unit['declaredShortName']}"
+    )
+    return target_parameter, target_unit
+
+
 def main() -> None:
+    # target_parameter, target_unit = get_target_parameter_and_unit(project_name="SimplePump", parameter_name = "flowRate")
+
     project_dir = Path(
         "/mnt/c/Users/SINKAA/Desktop/code/mons_wp1/SysMLInfra/examples/bilgepump"
     )
