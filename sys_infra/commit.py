@@ -428,9 +428,10 @@ def get_target_parameter(project_id: str, commit_id: str, part_name: str):
             f"Expected exactly one target parameter, but found {len(target_parameter)}. Check if the parameter name is correct and unique."
         )
     if len(target_unit) != 1:
-        raise ValueError(
-            f"Expected exactly one target unit, but found {len(target_unit)}. Check if the parameter name is correct and unique."
+        print(
+            f"Expected exactly one target unit, but found {len(target_unit)}. Parameter may not have a unit."
         )
+        target_unit = [{"declaredShortName": None}]
     return target_parameter[0], target_unit[0]
 
 
@@ -500,7 +501,21 @@ def lookup(all_elements_in_project, target_part_by_name, candidate_parts_by_type
     return matching_literals
 
 
+def get_target_parameter_and_unit(project_name: str, parameter_name: str):
+    project, _, commit_id = get_project_info(project_name=project_name)
+
+    target_parameter, target_unit = get_target_parameter(
+        project_id=project["@id"], commit_id=commit_id, part_name=parameter_name
+    )
+    print(
+        f"Got parameter {parameter_name} (id: {target_parameter['@id']}): {target_parameter['value']} {target_unit['declaredShortName']}"
+    )
+    return target_parameter, target_unit
+
+
 def main() -> None:
+    # target_parameter, target_unit = get_target_parameter_and_unit(project_name="SimplePump", parameter_name = "flowRate")
+
     project_dir = Path(
         "/mnt/c/Users/SINKAA/Desktop/code/mons_wp1/SysMLInfra/examples/bilgepump"
     )
