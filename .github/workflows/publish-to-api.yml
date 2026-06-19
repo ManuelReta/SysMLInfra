@@ -56,6 +56,9 @@ jobs:
       - name: Install Python dependencies
         run: pip install requests pyyaml
 
+      - name: Build the docker-compose stack
+        run: docker-compose up ---build --detach
+
       # -----------------------------------------------------------------------
       # 3. Publish: run commit.sh which reads sysml-project.yml for the layer
       #    list, POSTs each .sysml file to the API as a commit, and writes
@@ -66,7 +69,8 @@ jobs:
       # -----------------------------------------------------------------------
       - name: Publish model to SysML v2 API
         env:
-          API_BASE: ${{ secrets.SYSML_API_BASE }}
+          API_BASE: http://localhost:9000
+          #  ${{ secrets.SYSML_API_BASE }}
         run: bash commit.sh
 
       # -----------------------------------------------------------------------
@@ -76,7 +80,8 @@ jobs:
       # -----------------------------------------------------------------------
       - name: Verify API persistence and constraints
         env:
-          API_BASE: ${{ secrets.SYSML_API_BASE }}
+          API_BASE: http://localhost:9000
+          # ${{ secrets.SYSML_API_BASE }}
         run: python verify.py --fallback
 
       # -----------------------------------------------------------------------
