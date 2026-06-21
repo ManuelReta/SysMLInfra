@@ -32,7 +32,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONDA_BASE="${CONDA_BASE:-/home/manret/miniconda3}"
+CONDA_BASE="${CONDA_BASE:-$(conda info --base)}"
 SYSML_ENV="sysmlv2"
 SYSML_VERSION="0.58.0"
 
