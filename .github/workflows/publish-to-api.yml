@@ -55,9 +55,12 @@ jobs:
       - name: sync
         run: uv sync --all-groups
 
+      - name: dummy-certs
+        run: touch ${{ github.workspace }}/dummy.cer 
+
       - name: Build the docker-compose stack
         env:
-          CERT_PATH: ${{ github.workspace }} # Use dummy path
+          CERT_PATH: ${{ github.workspace }}/dummy.cer # Use dummy path
         run: docker compose up --build --detach
 
       # -----------------------------------------------------------------------
