@@ -56,6 +56,8 @@ jobs:
         run: uv sync --all-groups
 
       - name: Build the docker-compose stack
+        env:
+          CERT_PATH: ${{ github.workspace }} // Use dummy path
         run: docker compose up --build --detach
 
       # -----------------------------------------------------------------------
