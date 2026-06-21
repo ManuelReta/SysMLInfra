@@ -1,6 +1,8 @@
 services:
   pgadmin:
-    extends: docker-compose.yaml
+    extends: 
+      file: docker-compose.yaml
+      service: pgadmin
     environment:
       - REQUESTS_CA_BUNDLE=/run/secrets/zscaler
       - SSL_CERT_FILE=/run/secrets/zscaler
@@ -8,7 +10,9 @@ services:
       - zscaler
 
   sysml_v2_pilot_api:
-    extends: docker-compose.yaml
+    extends: 
+      file: docker-compose.yaml
+      service: sysml_v2_pilot_api
     build:
       secrets:
         - zscaler
