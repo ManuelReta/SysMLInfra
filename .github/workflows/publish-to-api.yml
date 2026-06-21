@@ -46,7 +46,12 @@ jobs:
       # -----------------------------------------------------------------------
       - name: Checkout
         uses: actions/checkout@v5
-
+        
+      - name: Install sysML v2 kernel
+        env:
+          API_BASE: http://localhost:9000
+          #  ${{ secrets.SYSML_API_BASE }}
+        run: bash setup.sh
       # -----------------------------------------------------------------------
       # 2. Python — only 'requests' is needed here; no kernel, no conda.
       # -----------------------------------------------------------------------
