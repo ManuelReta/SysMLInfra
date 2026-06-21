@@ -359,3 +359,34 @@ uv tool install pre-commit --with pre-commit-uv
 uv run pre-commit install
 uv run python /mnt/c/Users/SINKAA/Desktop/code/reactor_sys/jupyer-kernel/install.py --sys-prefix
 ```
+
+
+
+## Containerised sysml v2 pilot API
+To build image docker or podman 
+```
+docker build -f Dockerfile_pilot_api . --tag sysmlv2-pilot-api
+```
+```
+podman build -f Dockerfile_pilot_api . --tag sysmlv2-pilot-api
+```
+
+To build and run the pilot api with postgres container with docker/podman: 
+```
+docker compose up --build
+```
+```
+podman-compose up --build
+```
+You need podman-compose for this. 
+```
+sudo apt install podman-compose
+```
+### Certificate issue in docker container: 
+Due to the dnv proxy certificates have to be manually mounted into the container runtime. Follow instructions from here and add the env variable
+CERT_PATH=/path/to/cerfile.cert in .env file of repo. 
+
+https://sslinsights.com/pkix-path-building-failed-unable-to-find-valid-certification-path/
+
+Copy zscaler.cert from. 
+In mount this file volume into /etc/ssl/certs
