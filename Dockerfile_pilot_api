@@ -12,12 +12,12 @@ RUN apt-get install openssl
 COPY ./patches/persistence.xml /app/conf/META-INF/persistence.xml
 COPY ./patches/application.conf /app/conf/application.conf
 
-RUN --mount=type=secret,id=zscaler \
+RUN --mount=type=secret,id=zscaler,required=false \
     if [ -f /run/secrets/zscaler ]; then \
         keytool -import -noprompt -trustcacerts \
           -alias my-server-cert \
           -file /run/secrets/zscaler \
-          -keystore $JAVA_HOME/lib/security/cacerts \
+          -keystore /opt/java/openjdk/lib/security/cacerts \
           -storepass changeit; \
     else \
         echo "No zscaler cert provided, skipping import"; \
