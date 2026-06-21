@@ -48,6 +48,10 @@ jobs:
         uses: actions/checkout@v5
       
       - uses: conda-incubator/setup-miniconda@v4
+        with:
+          auto-activate-base: true
+          activate-environment: sysmlv2
+          environment-file: null
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -56,10 +60,11 @@ jobs:
           java-version: '21'
 
       - name: Install sysML v2 kernel
+        shell: bash -l {0}
         env:
           API_BASE: http://localhost:9000
           #  ${{ secrets.SYSML_API_BASE }}
-        run: bash setup.sh
+        run: conda activate sysmlv2 && bash setup.sh
       # -----------------------------------------------------------------------
       # 2. Python — only 'requests' is needed here; no kernel, no conda.
       # -----------------------------------------------------------------------
