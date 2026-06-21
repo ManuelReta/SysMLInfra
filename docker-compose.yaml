@@ -1,0 +1,52 @@
+services:
+  sysmldb:
+    image: postgres
+    container_name: sysml2-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=sysml2
+      - POSTGRES_PASSWORD=mysecretpassword
+      - POSTGRES_USER=postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: my-pgadmin
+    ports:
+      - "8090:80"
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@example.com
+      - PGADMIN_DEFAULT_PASSWORD=YourSecurePassword
+      - REQUESTS_CA_BUNDLE=/run/secrets/zscaler
+      - SSL_CERT_FILE=/run/secrets/zscaler
+    secrets:
+      - zscaler
+
+    depends_on:
+      - sysmldb
+
+  sysml_v2_pilot_api:
+    environment:
+      - PLAY_HTTP_SECRET_KEY="change-this-to-a-long-random-string-at-least-32-chars"
+    build:
+      context: .
+      dockerfile: Dockerfile_pilot_api
+      secrets:
+        - zscaler
+    volumes:
+      - ./patches/persistence.xml:/app/conf/META-INF/persistence.xml
+    command: >
+      bash -c "
+      target/universal/stage/bin/sysml-v2-api-services
+      "
+    ports:
+      - "9000:9000"
+
+secrets:
+  zscaler:
+    file: ${CERT_PATH}

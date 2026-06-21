@@ -1,0 +1,23 @@
+FROM eclipse-temurin:11-jdk-jammy
+
+RUN apt-get update && apt-get install -y git curl maven
+
+RUN curl -L https://github.com/sbt/sbt/releases/download/v1.2.8/sbt-1.2.8.tgz \
+    | tar xz -C /opt \
+    && ln -s /opt/sbt/bin/sbt /usr/bin/sbt
+
+WORKDIR /app
+RUN git clone --branch 2026-04 https://github.com/Systems-Modeling/SysML-v2-API-Services.git .
+RUN apt-get install openssl
+COPY ./patches/persistence.xml /app/conf/META-INF/persistence.xml
+COPY ./patches/application.conf /app/conf/application.conf
+
+RUN --mount=type=secret,id=zscaler \
+    keytool -import -noprompt -trustcacerts \
+      -alias my-server-cert \
+      -file /run/secrets/zscaler \
+      -keystore $JAVA_HOME/lib/security/cacerts \
+      -storepass changeit && \
+    sbt stage
+
+
