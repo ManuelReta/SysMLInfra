@@ -46,7 +46,21 @@ jobs:
       # -----------------------------------------------------------------------
       - name: Checkout
         uses: actions/checkout@v5
-        
+      
+      - name: Setup Miniconda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-update-conda: true
+          python-version: 3.11
+          environment-file: environment.yml   # optional
+          activate-environment: my-env        # optional
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin   # recommended OpenJDK distro
+          java-version: '17'
+
       - name: Install sysML v2 kernel
         env:
           API_BASE: http://localhost:9000

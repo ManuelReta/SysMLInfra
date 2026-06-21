@@ -16,12 +16,13 @@ SCRIPT_DIR = Path(os.path.dirname(os.path.abspath(__file__)))
 HEADERS = {"Accept": "application/json"}
 
 
-def check_api_server() -> None:
+def check_api_server() -> bool:
     print(f"Checking API server at {API_BASE}...")
     try:
         r = requests.get(f"{API_BASE}/", timeout=5)
         r.raise_for_status()
         print(f"  Server ready (HTTP {r.status_code})")
+        return True
     except Exception as e:
         print(f"ERROR: {e}", file=sys.stderr)
         print("\nAPI server is not responding.")
