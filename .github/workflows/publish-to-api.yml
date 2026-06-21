@@ -47,13 +47,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
       
-      - name: Setup Miniconda
-        uses: conda-incubator/setup-miniconda@v3
-        with:
-          auto-update-conda: true
-          python-version: 3.11
-          environment-file: environment.yml   # optional
-          activate-environment: my-env        # optional
+      - uses: conda-incubator/setup-miniconda@v4
 
       - name: Setup Java
         uses: actions/setup-java@v4
