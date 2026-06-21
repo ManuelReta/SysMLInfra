@@ -86,7 +86,7 @@ jobs:
         env:
           API_BASE: http://localhost:9000
           # ${{ secrets.SYSML_API_BASE }}
-        run: uv run python -m sys_infra.verify --fallback
+        run: uv run python -m sys_infra.entry verify --publish
 
       # -----------------------------------------------------------------------
       # 5. Upload the publish state as a downloadable artifact.
