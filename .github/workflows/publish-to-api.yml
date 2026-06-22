@@ -1,31 +1,5 @@
 name: Publish SysML Model to API
 
-# =============================================================================
-# publish-to-api.yml — Post-merge publication to the SysML v2 API server
-#
-# Triggers only on pushes to 'main' that touch a .sysml file (i.e. after a
-# validated PR has been merged).  Publishes the fully assembled, compiler-
-# verified model to the SysML v2 API server, making it the single source of
-# truth for downstream consumers (PLM tools, classification bodies, dashboards).
-#
-# Because validate-pr.yml must have passed before the merge, the API server
-# NEVER receives an invalid or partial-branch model.
-#
-# Required GitHub Secret (Settings → Secrets → Actions → New repository secret):
-#   SYSML_API_BASE — the base URL of your SysML v2 API server.
-#                    Default if secret is absent: http://sysml2.intercax.com:9000
-#                    For a self-hosted server: http://your-server:9000
-#
-# Outputs:
-#   GitHub Actions artifact 'sysml-api-publish-state' containing:
-#     - lib/commit-ids.json        (project_id + per-layer commit IDs)
-#     - lib/current-project-id.txt (project ID for other scripts)
-#   Download from the Actions tab → workflow run → Artifacts.
-#   The lib/ directory is NOT committed back to git.
-#
-# For a new project: update sysml-project.yml only.  This workflow is generic.
-# =============================================================================
-
 on:
   push:
     branches:
@@ -41,29 +15,27 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # -----------------------------------------------------------------------
-      # 1. Check out main (the just-merged, validated model)
-      # -----------------------------------------------------------------------
       - name: Checkout
         uses: actions/checkout@v5
+      - name: Build and start the docker-compose services
+        env:
+          CERT_PATH: ${{ github.workspace }}/dummy.cer
+        run: docker compose up sysmldb sysml_v2_pilot_api --build --detach
       
       - uses: conda-incubator/setup-miniconda@v4
 
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
-          distribution: temurin   # recommended OpenJDK distro
+          distribution: temurin
           java-version: '21'
 
       - name: Install sysML v2 kernel
         shell: bash -l {0}
         env:
           API_BASE: http://localhost:9000
-          #  ${{ secrets.SYSML_API_BASE }}
         run: conda info --envs && bash setup.sh
-      # -----------------------------------------------------------------------
-      # 2. Python — only 'requests' is needed here; no kernel, no conda.
-      # -----------------------------------------------------------------------
+
       - name: Install uv
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
       - name: sync
@@ -72,30 +44,11 @@ jobs:
       - name: dummy-certs
         run: touch ${{ github.workspace }}/dummy.cer 
 
-      - name: Build and start the docker-compose services
-        env:
-          CERT_PATH: ${{ github.workspace }}/dummy.cer # Use dummy path
-        run: docker compose up sysmldb sysml_v2_pilot_api --build --detach
-
-      # -----------------------------------------------------------------------
-      # 3. Publish: run commit.sh which reads sysml-project.yml for the layer
-      #    list, POSTs each .sysml file to the API as a commit, and writes
-      #    lib/commit-ids.json with the resulting project + commit IDs.
-      #
-      #    API_BASE is read from the SYSML_API_BASE secret.  If the secret is
-      #    not set the script falls back to the public SST pilot server.
-      # -----------------------------------------------------------------------
       - name: Publish model to SysML v2 API
         env:
           API_BASE: http://localhost:9000
-          #  ${{ secrets.SYSML_API_BASE }}
         run: bash commit.sh
 
-      # -----------------------------------------------------------------------
-      # 4. Verify persistence: confirm the API actually stored all commits.
-      #    Uses verify.py --fallback which re-runs constraint checks as a
-      #    sanity gate after publication (API-free, Python-only).
-      # -----------------------------------------------------------------------
       - name: Verify API persistence and constraints
         env:
           API_BASE: http://localhost:9000
@@ -103,11 +56,6 @@ jobs:
       - name: Run integration tests
         run: uv run python -m pytest -m integration
 
-      # -----------------------------------------------------------------------
-      # 5. Upload the publish state as a downloadable artifact.
-      #    lib/commit-ids.json contains the project_id and commit IDs needed
-      #    to query or reference this model version via the API.
-      # -----------------------------------------------------------------------
       - name: Upload publish state artifact
         if: always()
         uses: actions/upload-artifact@v4

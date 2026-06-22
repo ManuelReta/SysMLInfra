@@ -40,19 +40,24 @@ def wait_for_api(url, timeout=30):
     raise RuntimeError("API did not become ready")
 
 
+def pytest_addoption(parser):
+    parser.addoption("--no-docker", action="store_true")
+
+
 @pytest.fixture(scope="session", autouse=True)
-def docker_compose():
+def docker_compose(request):
     LOCAL_RUN = os.getenv("LOCAL")
-    running = (
-        ["docker", "compose", "-f", "docker-compose.yaml", "up", "--"]
-        if LOCAL_RUN
-        else ["docker", "compose", "-f", "docker-compose-local.yaml", "up", "-d"]
-    )
+    if request.config.getoption("--no-docker"):
+        yield
+        return
+
+    compose_file = "docker-compose.yaml" if LOCAL_RUN else "docker-compose-local.yaml"
+
+    running = ["docker", "compose", "-f", compose_file, "up", "-d"]
 
     subprocess.run(running, check=True)
 
     wait_for_api("http://localhost:9000")
 
     yield
-
-    subprocess.run(["docker", "compose", "down"], check=True)
+    subprocess.run(["docker", "compose", "-f", compose_file, "down"], check=True)
