@@ -60,7 +60,7 @@ jobs:
         env:
           API_BASE: http://localhost:9000
           #  ${{ secrets.SYSML_API_BASE }}
-        run: conda activate sysmlv2 && bash setup.sh
+        run: conda info --envs && bash setup.sh
       # -----------------------------------------------------------------------
       # 2. Python — only 'requests' is needed here; no kernel, no conda.
       # -----------------------------------------------------------------------
