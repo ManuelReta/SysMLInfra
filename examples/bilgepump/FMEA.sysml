@@ -1,139 +1,102 @@
 // =============================================================================
 // BilgePump::FMEA
 // Layer: Failure Mode and Effects Analysis
-// Purpose: FMEA artifacts for the bilge pump system — failure mode attribute
-//          definitions, reliability and risk constraint definitions (RPN, NPSH,
-//          parallel failure rate), and negative-test analysis cases that inject
-//          failure mode values to confirm requirement violations.
+// Purpose: FMEA artifacts for the bilge pump system -- failure-mode attribute
+// and constraint definitions (RPN, parallel failure rate, NPSH,
+// failover timing) plus NEGATIVE verification cases that inject
+// failure-mode values and confirm the affected requirements VIOLATE.
 //
-// This layer is parallel to (not downstream of) Safety.sysml.
-// Both Safety.sysml and FMEA.sysml are imported by Analysis.sysml for the
-// complete verification picture.
+// This layer is parallel to Safety.sysml; both are imported into the unified
+// BilgePump project for the complete verification picture.
 //
-// Import chain:
-//   BilgePump::RAAML       — FailureMode, FaultTree metadata stereotypes
-//   BilgePump::Library     — part defs and attribute types
-//   BilgePump::Architecture — BilgePumpSystem part usage instances
-//   BilgePump::Requirements — existing 4 requirement defs for assert statements
-//   BilgePump::Safety       — UCA requirement defs for assert statements
+// KERNEL-EVALUABLE NEGATIVE TESTS
+// -------------------------------
+// The kernel cannot override an attribute value already bound by Architecture
+// (e.g. pumpA.flowRate, alarm.activationDelay_s).  Each fault is therefore
+// injected on a fresh component instance typed by its Library part def (whose
+// attributes are unbound), and the affected requirement is re-expressed as a
+// computed Boolean.  Every Boolean below is expected to evaluate to FALSE
+// (i.e. VIOLATED), which the publish pipeline captures via %eval and records in
+// the `sysml_assertions` table with result_bool = false.
+//
+// %eval BilgePump_FMEA::FM_S_001_alarm     -> LiteralBoolean false   (VIOLATED)
 //
 // SOURCE DOCUMENTS:
-//   FMEA-BPS-001 — FMEA table (8 failure modes; S/O/D ratings)
-//   FMEA-BPS-002 — Reliability and risk constraint equations
-//   FMEA-BPS-003 — Negative test scenarios (one per critical failure mode)
-//
-// EXECUTION:
-//   Each analysis def in this file is a negative test case.
-//   Run via SysML v2 Pilot API (Safety.ipynb) AFTER the main
-//   BilgePumpVerification positive test has passed.
-//   Expected results are documented inline and in FMEA-BPS-003.
+// FMEA-BPS-001 -- FMEA table (failure modes; S/O/D ratings)
+// FMEA-BPS-002 -- Reliability and risk constraint equations
+// FMEA-BPS-003 -- Negative test scenarios (one per critical failure mode)
 // =============================================================================
 
-package 'BilgePump::FMEA' {
-
-    import 'BilgePump::RAAML'::*;
-    import 'BilgePump::Library'::*;
-    import 'BilgePump::Architecture'::*;
-    import 'BilgePump::Requirements'::*;
-    import 'BilgePump::Safety'::*;
+package BilgePump_FMEA {
+    private import ScalarValues::*;
+    public import BilgePump_RAAML::*;
+    public import BilgePump_Library::*;
+    public import BilgePump_Architecture::*;
+    public import BilgePump_Requirements::*;
 
     // =========================================================================
     // Failure Mode Attribute Definition
     // Extends Library attribute types with FMEA rating fields.
-    // Used as additional attributes on part def specialisations or as
-    // standalone constraint parameters in the analysis cases below.
     // SOURCE: FMEA-BPS-001; MIL-STD-1629A; AIAG FMEA 4th Edition
+    // NOTE: 'occurrence' is a reserved SysML v2 keyword -> 'occurrenceRating'.
     // =========================================================================
     attribute def FailureModeAttr {
-        attribute severity   : Real;    // 1–10 AIAG severity scale
-        attribute occurrence : Real;    // 1–10 occurrence likelihood
-        attribute detection  : Real;    // 1–10 detection capability
-        attribute rpn        : Real;    // Risk Priority Number = S × O × D
+        attribute severity : Real; // 1-10 AIAG severity scale
+        attribute occurrenceRating : Real; // 1-10 occurrence likelihood
+        attribute detection : Real; // 1-10 detection capability
+        attribute rpn : Real; // Risk Priority Number = S x O x D
     }
 
     // =========================================================================
-    // FMEA CONSTRAINT DEFINITIONS
-    // Physics and reliability equations derived from FMEA-BPS-002.
-    // Consumed by the analysis cases below.
+    // FMEA CONSTRAINT DEFINITIONS  (from FMEA-BPS-002)
     // =========================================================================
 
-    // -------------------------------------------------------------------------
-    // RiskPriorityNumber
-    // Computes the FMEA Risk Priority Number.
-    // SOURCE: FMEA-BPS-002 §2.1; MIL-STD-1629A; AIAG FMEA 4th Edition
-    // NOTE: RPN alone is insufficient for safety-critical assessment.
-    //       Use in conjunction with STPA hazard severity from Safety.sysml.
-    // -------------------------------------------------------------------------
-    #FaultTree {
-        ftId      = "FT-RPN";
-        topEvent  = "High Risk Priority Number (RPN ≥ 100)";
-        gate      = "AND";
-        cutSets   = "high_severity,high_occurrence";
-        sourceDoc = "FMEA-BPS-002";
-        section   = "2.1";
-    }
+    // RiskPriorityNumber -- RPN = S x O x D.
+    // SOURCE: FMEA-BPS-002 §2.1; MIL-STD-1629A; AIAG FMEA 4th Edition.
+    // Fault-tree tag: FT-RPN, top event "High Risk Priority Number (RPN >= 100)".
     constraint def RiskPriorityNumber {
-        attribute severity   : Real;    // Input: S rating (1–10)
-        attribute occurrence : Real;    // Input: O rating (1–10)
-        attribute detection  : Real;    // Input: D rating (1–10)
-        attribute rpn        : Real;    // Output: computed RPN
+        attribute severity : Real; // Input: S rating (1-10)
+        attribute occurrenceRating : Real; // Input: O rating (1-10)
+        attribute detection : Real; // Input: D rating (1-10)
+        attribute rpn : Real; // Output: computed RPN
 
         assert constraint {
-            rpn == severity * occurrence * detection
+            rpn == severity * occurrenceRating * detection
         }
     }
 
-    // -------------------------------------------------------------------------
-    // ParallelRedundancyFailureRate
-    // System failure rate for two pumps in active parallel redundancy.
-    // Both must fail simultaneously for system loss — exponential model.
-    // SOURCE: FMEA-BPS-002 §2.2; IEC 61508-6 Table B.5; MIL-HDBK-217F
-    // NOTE: Valid for exponential lifetime distribution only.
-    //       Use Weibull analysis for run hours > 8000 h (wear-out phase).
-    //       Nominal lambda_A = lambda_B = 1.5e-5 failures/hour.
-    // -------------------------------------------------------------------------
+    // ParallelRedundancyFailureRate -- system failure rate for two pumps in
+    // active parallel redundancy (both must fail; exponential model).
+    // SOURCE: FMEA-BPS-002 §2.2; IEC 61508-6 Table B.5; MIL-HDBK-217F.
     constraint def ParallelRedundancyFailureRate {
-        attribute lambda_A   : Real;    // Pump A failure rate (failures/hour)
-        attribute lambda_B   : Real;    // Pump B failure rate (identical pump — equals lambda_A)
-        attribute lambda_sys : Real;    // System failure rate with parallel redundancy
+        attribute lambda_A : Real; // Pump A failure rate (failures/hour)
+        attribute lambda_B : Real; // Pump B failure rate (= lambda_A, identical pump)
+        attribute lambda_sys : Real; // System failure rate with parallel redundancy
 
         assert constraint {
             lambda_sys == lambda_A * lambda_B
         }
     }
 
-    // -------------------------------------------------------------------------
-    // NPSHMarginCheck
-    // Cavitation avoidance constraint: available NPSH must exceed required
-    // NPSH by the Hydraulic Institute design margin (minimum 1.0 m).
-    // SOURCE: FMEA-BPS-002 §2.3; Hydraulic Institute Standards; ISO 9906
-    // FAILURE MODE LINK: FM-PA-002 (Pump A cavitation)
-    // -------------------------------------------------------------------------
+    // NPSHMarginCheck -- cavitation avoidance: available NPSH must exceed
+    // required NPSH by the Hydraulic Institute design margin (>= 1.0 m).
+    // SOURCE: FMEA-BPS-002 §2.3; Hydraulic Institute Standards; ISO 9906.
+    // FAILURE MODE LINK: FM-PA-002 (Pump A cavitation).
     constraint def NPSHMarginCheck {
-        attribute npsh_available : Real;   // Input: NPSH available (m) from suction geometry
-        attribute npsh_required  : Real;   // Input: NPSH required at rated flow from CFD curve
-        attribute npsh_margin    : Real;   // Input: Design margin (Hydraulic Institute ≥ 1.0 m)
+        attribute npsh_available : Real; // NPSH available (m) from suction geometry
+        attribute npsh_required : Real; // NPSH required at rated flow (CFD curve)
+        attribute npsh_margin : Real; // Design margin (Hydraulic Institute >= 1.0 m)
 
         assert constraint {
             npsh_available >= npsh_required + npsh_margin
         }
     }
 
-    // -------------------------------------------------------------------------
-    // FailoverSwitchTimeConstraint
-    // Timing constraint for controller failover from Pump A to Pump B.
-    // SOURCE: SIM-CTRL-001 \u00a73.2 (Simulink discrete-event failover timing model)
-    // FAILURE MODE LINK: FM-C-003 (controller failover not triggered)
-    // NOTE: Complements ParallelRedundancyFailureRate (structural redundancy);
-    //       this constraint verifies temporal adequacy of the redundancy switch.
-    //       SIM-CTRL-001 \u00a73.2 scenarios:
-    //         Normal failover:   failoverTime_s = 0.8 s \u2192 PASS
-    //         Delayed detection: failoverTime_s = 2.7 s \u2192 PASS
-    //         No failover:       failoverTime_s = 9999.0 s \u2192 FAIL
-    // -------------------------------------------------------------------------
+    // FailoverSwitchTimeConstraint -- timing of controller failover A -> B.
+    // SOURCE: SIM-CTRL-001 §3.2. FAILURE MODE LINK: FM-C-003.
     constraint def FailoverSwitchTimeConstraint {
-        attribute failoverTime_s    : Real;   // Actual time from fault detection to Pump B command (s)
-        attribute maxFailoverTime_s : Real;   // Maximum allowed failover time (s)
+        attribute failoverTime_s : Real; // Actual fault-to-Pump-B-command time (s)
+        attribute maxFailoverTime_s : Real; // Maximum allowed failover time (s)
 
         assert constraint {
             failoverTime_s <= maxFailoverTime_s
@@ -141,301 +104,175 @@ package 'BilgePump::FMEA' {
     }
 
     // =========================================================================
-    // FMEA NEGATIVE TEST ANALYSIS CASES
-    // Each analysis def injects a specific failure mode value and confirms that
-    // the affected requirements are VIOLATED. This provides direct traceability
-    // from FMEA failure modes to formal SysML v2 model verification.
+    // FMEA NEGATIVE TEST CASES (fault injection -> expected VIOLATED)
     //
-    // These tests are complementary to the positive tests in Analysis.sysml.
-    // The Orchestrator runs them as Phase 3.5 verification BEFORE VerificationAgent.
-    //
-    // RPN action threshold: 100 (per FMEA-BPS-001 metadata).
-    // All scenarios marked expected_violations must produce VIOLATED results.
+    // Each fault is injected on Library-typed component instances; the affected
+    // requirement is re-expressed as a computed Boolean expected to be FALSE.
+    // RPN action threshold: 100 (FMEA-BPS-001).
     // =========================================================================
 
     // -------------------------------------------------------------------------
-    // FMEA Negative Test 1: Sensor Stuck-At-Zero
-    // Failure Mode: FM-S-001 (BilgeWaterSensor fail-silent)
-    // RPN: 240 (S=10, O=3, D=8) — exceeds threshold
-    // SOURCE: FMEA-BPS-003 §3.1
-    // EXPECTED: UCA_002_SensorFailSilent VIOLATED
-    //           DischargeCapacityRequirement VIOLATED
-    //           AlarmResponseRequirement VIOLATED
+    // FM-S-001: BilgeWaterSensor stuck-at-zero (fail-silent).  RPN=240.
+    // SOURCE: FMEA-BPS-003 §3.1.
+    // Effect: controller never activates pumps; alarm never fires.
+    // EXPECTED VIOLATED: AlarmResponseRequirement, DischargeCapacityRequirement.
     // -------------------------------------------------------------------------
-    #FailureMode {
-        fmId            = "FM-S-001";
-        component       = "BilgeWaterSensor";
-        instance        = "sensor";
-        failureModeText = "Stuck-at-zero output (fail-silent)";
-        failureEffect   = "Controller never activates pumps; bilge floods unchecked";
-        severity        = 10;
-        occurrence      = 3;
-        detection       = 8;
-        rpn             = 240;
-        ucaRef          = "UCA-002";
-        hazardRef       = "H-1";
-        sourceDoc       = "FMEA-BPS-001";
-        section         = "3.1";
+    part fmS001_alarm : AlarmSystem {
+        @FailureMode {
+            fmId = "FM-S-001";
+            component = "BilgeWaterSensor";
+            instance = "sensor";
+            failureModeText = "Stuck-at-zero output (fail-silent)";
+            failureEffect = "Controller never activates pumps; bilge floods unchecked";
+            severity = 10;
+            occurrenceRating = 3;
+            detection = 8;
+            rpn = 240;
+            ucaRef = "UCA-002";
+            hazardRef = "H-1";
+            sourceDoc = "FMEA-BPS-001";
+            section = "3.1";
+        }
+        attribute :>> activationDelay_s = 999.0; // FAULT: alarm never annunciates
     }
-    analysis def FMEA_SensorStuckAtZero {
-        subject sys : BilgePumpSystem {
-            // Fault injection: sensor reports 0.0 m (stuck-at-zero)
-            // Actual bilge level approximately 0.28 m and rising
-            bind sys.sensor.waterLevel          = 0.0;     // FAULT: stuck-at-zero
-            bind sys.controller.triggerLevel_m  = 0.25;    // Nominal trigger unchanged
-            bind sys.controller.responseTime_s  = 1.0;     // Would respond if triggered
-            bind sys.pumpA.flowRate             = 0.0;     // Not activated — no trigger
-            bind sys.pumpB.flowRate             = 0.0;     // Not activated — no trigger
-            bind sys.pumpA.efficiency           = 0.82;    // Nominal if activated
-            bind sys.pumpB.efficiency           = 0.82;
-            bind sys.discharge.pipeLossFactor   = 0.05;
-            bind sys.alarm.activationDelay_s    = 999.0;   // FAULT: alarm never fires
-            bind sys.alarm.isActive             = false;
-            bind sys.pumpB.isRedundant          = true;
-            bind sys.ui.overrideActive          = false;
-        }
-
-        // Physics check with zero-flow — expected VIOLATED
-        constraint fmeaPhysicsCheck : RiskPriorityNumber {
-            bind fmeaPhysicsCheck.severity   = 10.0;
-            bind fmeaPhysicsCheck.occurrence = 3.0;
-            bind fmeaPhysicsCheck.detection  = 8.0;
-        }
-
-        // Expected: VIOLATED (sensor reading = 0.0 but this req checks range 0.0–1.0;
-        // the structural fail-silent violation is that the value never responds to real changes)
-        assert requirement sensorRangeCheck : UCA_002_SensorFailSilent { subject sys; }
-
-        // Expected: VIOLATED — combined flow = 0; design inflow = 0.030 m³/s
-        assert requirement dischargeCheck : DischargeCapacityRequirement {
-            subject sys;
-            bind dischargeCheck.designInflow = 0.030;
-        }
-
-        // Expected: VIOLATED — alarm delay = 999 s >> 2.0 s limit
-        assert requirement alarmCheck : AlarmResponseRequirement { subject sys; }
-    }
+    part fmS001_pumpA : BilgePumpA { attribute :>> flowRate = 0.0; } // not activated
+    part fmS001_pumpB : BilgePumpB { attribute :>> flowRate = 0.0; } // not activated
+    // VIOLATED: alarm delay 999 s > 2.0 s [BPS-REQ-003]
+    attribute FM_S_001_alarm : Boolean = fmS001_alarm.activationDelay_s <= 2.0;
+    // VIOLATED: combined flow 0 < 0.030 m^3/s [BPS-REQ-004]
+    attribute FM_S_001_discharge : Boolean = fmS001_pumpA.flowRate + fmS001_pumpB.flowRate >= 0.030;
 
     // -------------------------------------------------------------------------
-    // FMEA Negative Test 2: Pump A Cavitation (Degraded Efficiency)
-    // Failure Mode: FM-PA-002 (BilgePumpA reduced efficiency)
-    // RPN: 210 (S=7, O=5, D=6) — exceeds threshold
-    // SOURCE: FMEA-BPS-003 §3.2
-    // EXPECTED: DischargeCapacityRequirement VIOLATED
-    //           Q_net = (0.025+0.025) * 0.40 * (1-0.05) = 0.019 < 0.030
+    // FM-PA-002: BilgePumpA cavitation (degraded efficiency 0.40).  RPN=210.
+    // SOURCE: FMEA-BPS-003 §3.2.
+    // EXPECTED VIOLATED: EffectiveDischargeCapacityRequirement (per-pump eta).
+    // netFlow = (0.025*0.40 + 0.025*0.82) * (1-0.05) = 0.028975 < 0.030.
+    // Note: the raw-sum DischargeCapacityRequirement would NOT catch this; the
+    // effective (efficiency-aware) check FT-002 is the discriminating test.
     // -------------------------------------------------------------------------
-    #FailureMode {
-        fmId            = "FM-PA-002";
-        component       = "BilgePumpA";
-        instance        = "pumpA";
-        failureModeText = "Reduced efficiency due to cavitation at low NPSH";
-        failureEffect   = "Net discharge flow drops below design inflow threshold";
-        severity        = 7;
-        occurrence      = 5;
-        detection       = 6;
-        rpn             = 210;
-        ucaRef          = "";
-        hazardRef       = "H-1";
-        sourceDoc       = "FMEA-BPS-001";
-        section         = "4.2";
+    part fmPA002_pumpA : BilgePumpA {
+        @FailureMode {
+            fmId = "FM-PA-002";
+            component = "BilgePumpA";
+            instance = "pumpA";
+            failureModeText = "Reduced efficiency due to cavitation at low NPSH";
+            failureEffect = "Net discharge flow drops below design inflow threshold";
+            severity = 7;
+            occurrenceRating = 5;
+            detection = 6;
+            rpn = 210;
+            ucaRef = "";
+            hazardRef = "H-1";
+            sourceDoc = "FMEA-BPS-001";
+            section = "4.2";
+        }
+        attribute :>> flowRate = 0.025;
+        attribute :>> efficiency = 0.40; // FAULT: cavitation-degraded efficiency
     }
-    analysis def FMEA_PumpACavitation {
-        subject sys : BilgePumpSystem {
-            bind sys.sensor.waterLevel          = 0.15;    // Normal sensor reading
-            bind sys.controller.triggerLevel_m  = 0.25;
-            bind sys.controller.responseTime_s  = 1.0;
-            bind sys.pumpA.flowRate             = 0.025;   // Motor running — nominal flow
-            bind sys.pumpA.efficiency           = 0.40;    // FAULT: cavitation-degraded efficiency
-            bind sys.pumpA.runHours             = 120.0;
-            bind sys.pumpB.flowRate             = 0.025;   // Nominal
-            bind sys.pumpB.efficiency           = 0.82;    // Pump B unaffected
-            bind sys.pumpB.runHours             = 85.0;
-            bind sys.pumpB.isRedundant          = true;
-            bind sys.discharge.pipeLossFactor   = 0.05;
-            bind sys.alarm.activationDelay_s    = 0.5;
-            bind sys.alarm.isActive             = false;
-            bind sys.ui.overrideActive          = false;
-        }
-
-        // NPSH check — cavitation is occurring because NPSH margin insufficient
-        constraint npshCheck : NPSHMarginCheck {
-            bind npshCheck.npsh_available = 2.8;    // Reduced head due to flooding conditions
-            bind npshCheck.npsh_required  = 2.5;
-            bind npshCheck.npsh_margin    = 1.0;    // Hydraulic Institute minimum
-            // npsh_available (2.8) < npsh_required + npsh_margin (3.5) → VIOLATED
-        }
-
-        // Expected: VIOLATED — Q_net = (0.025+0.025)*0.40*(1-0.05) = 0.019 < 0.030
-        assert requirement dischargeCheck : DischargeCapacityRequirement {
-            subject sys;
-            bind dischargeCheck.designInflow = 0.030;
-        }
+    part fmPA002_pumpB : BilgePumpB {
+        attribute :>> flowRate = 0.025;
+        attribute :>> efficiency = 0.82; // Pump B unaffected
     }
+    part fmPA002_disch : DischargeLine { attribute :>> pipeLossFactor = 0.05; }
+    attribute FM_PA_002_netFlow : Real =
+        (fmPA002_pumpA.flowRate * fmPA002_pumpA.efficiency +
+            fmPA002_pumpB.flowRate * fmPA002_pumpB.efficiency) *
+        (1.0 - fmPA002_disch.pipeLossFactor);
+    // VIOLATED: netFlow 0.028975 < 0.030 [BPS-FT-002]
+    attribute FM_PA_002_effDischarge : Boolean = FM_PA_002_netFlow >= 0.030;
 
     // -------------------------------------------------------------------------
-    // FMEA Negative Test 3: Emergency Power Bus Loss (Redundancy Violated)
-    // Failure Mode: FM-PB-001 (BilgePumpB independent power feed lost)
-    // RPN: 72 (S=9, O=2, D=4) — below threshold but Severity=9 flags review
-    // SOURCE: FMEA-BPS-003 §3.3
-    // EXPECTED: PumpRedundancyRequirement VIOLATED
+    // FM-PB-001: BilgePumpB redundant feed lost (isRedundant -> false).  RPN=72
+    // (Severity=9 flags mandatory review).  SOURCE: FMEA-BPS-003 §3.3.
+    // EXPECTED VIOLATED: PumpRedundancyRequirement.
     // -------------------------------------------------------------------------
-    #FailureMode {
-        fmId            = "FM-PB-001";
-        component       = "BilgePumpB";
-        instance        = "pumpB";
-        failureModeText = "Redundant pump unavailable — independent power bus lost";
-        failureEffect   = "PumpB.isRedundant effectively false; single point of failure";
-        severity        = 9;
-        occurrence      = 2;
-        detection       = 4;
-        rpn             = 72;
-        ucaRef          = "";
-        hazardRef       = "H-4";
-        sourceDoc       = "FMEA-BPS-001";
-        section         = "5.1";
-    }
-    analysis def FMEA_PowerBusLoss {
-        subject sys : BilgePumpSystem {
-            bind sys.sensor.waterLevel          = 0.15;
-            bind sys.controller.triggerLevel_m  = 0.25;
-            bind sys.controller.responseTime_s  = 1.0;
-            bind sys.power.nominalVoltage        = 440.0;
-            bind sys.power.redundancyActive      = false;  // FAULT: emergency bus down
-            bind sys.pumpA.flowRate             = 0.025;   // Primary pump operating
-            bind sys.pumpA.efficiency           = 0.82;
-            bind sys.pumpA.runHours             = 120.0;
-            bind sys.pumpB.flowRate             = 0.025;   // Running on main bus (not independent)
-            bind sys.pumpB.efficiency           = 0.82;
-            bind sys.pumpB.runHours             = 85.0;
-            bind sys.pumpB.isRedundant          = false;   // FAULT: power feed not independent
-            bind sys.discharge.pipeLossFactor   = 0.05;
-            bind sys.alarm.activationDelay_s    = 0.5;
-            bind sys.alarm.isActive             = false;
-            bind sys.ui.overrideActive          = false;
+    part fmPB001_pumpB : BilgePumpB {
+        @FailureMode {
+            fmId = "FM-PB-001";
+            component = "BilgePumpB";
+            instance = "pumpB";
+            failureModeText = "Redundant pump unavailable -- independent power bus lost";
+            failureEffect = "PumpB.isRedundant effectively false; single point of failure";
+            severity = 9;
+            occurrenceRating = 2;
+            detection = 4;
+            rpn = 72;
+            ucaRef = "";
+            hazardRef = "H-4";
+            sourceDoc = "FMEA-BPS-001";
+            section = "5.1";
         }
-
-        // Expected: VIOLATED — pumpB.isRedundant = false
-        assert requirement redundancyCheck : PumpRedundancyRequirement { subject sys; }
-
-        // Also check UCA-004 — failover requirement is now structurally unmet
-        assert requirement failoverCheck : UCA_004_ControllerNoFailover { subject sys; }
+        attribute :>> isRedundant = false; // FAULT: power feed not independent
     }
+    // VIOLATED: isRedundant == true is false [BPS-REQ-002]
+    attribute FM_PB_001_redundancy : Boolean = fmPB001_pumpB.isRedundant == true;
 
     // -------------------------------------------------------------------------
-    // FMEA Negative Test 4: Controller Software Hang
-    // Failure Mode: FM-C-001 (PumpController hang — no outputs issued)
-    // RPN: 140 (S=10, O=2, D=7) — exceeds threshold
-    // SOURCE: FMEA-BPS-003 §3.4
-    // EXPECTED: UCA_001_ControllerNoActivatePumpA VIOLATED
-    //           DischargeCapacityRequirement VIOLATED
-    //           AlarmResponseRequirement VIOLATED
+    // FM-C-001: PumpController software hang (no outputs).  RPN=140.
+    // SOURCE: FMEA-BPS-003 §3.4.  State: FAULT.
+    // EXPECTED VIOLATED: ControllerActivationTimingRequirement,
+    // DischargeCapacityRequirement, AlarmResponseRequirement.
     // -------------------------------------------------------------------------
-    #FailureMode {
-        fmId            = "FM-C-001";
-        component       = "PumpController";
-        instance        = "controller";
-        failureModeText = "Controller software hang — no outputs issued";
-        failureEffect   = "No pump commands; no alarm; all automation paths fail";
-        severity        = 10;
-        occurrence      = 2;
-        detection       = 7;
-        rpn             = 140;
-        ucaRef          = "UCA-001";
-        hazardRef       = "H-1";
-        stateRef        = "FAULT";
-        sourceDoc       = "FMEA-BPS-001";
-        section         = "6.1";
-    }
-    analysis def FMEA_ControllerHang {
-        subject sys : BilgePumpSystem {
-            bind sys.sensor.waterLevel          = 0.28;    // Valid — rising flood
-            bind sys.controller.triggerLevel_m  = 0.25;
-            bind sys.controller.responseTime_s  = 9999.0;  // FAULT: controller hung
-            bind sys.pumpA.flowRate             = 0.0;     // Not activated
-            bind sys.pumpA.efficiency           = 0.82;
-            bind sys.pumpA.runHours             = 120.0;
-            bind sys.pumpB.flowRate             = 0.0;     // Not activated
-            bind sys.pumpB.efficiency           = 0.82;
-            bind sys.pumpB.runHours             = 85.0;
-            bind sys.pumpB.isRedundant          = true;    // Structurally true but controller hung
-            bind sys.discharge.pipeLossFactor   = 0.05;
-            bind sys.alarm.activationDelay_s    = 9999.0;  // FAULT: alarm output frozen
-            bind sys.alarm.isActive             = false;
-            bind sys.ui.overrideActive          = false;
+    part fmC001_controller : PumpController {
+        @FailureMode {
+            fmId = "FM-C-001";
+            component = "PumpController";
+            instance = "controller";
+            failureModeText = "Controller software hang -- no outputs issued";
+            failureEffect = "No pump commands; no alarm; all automation paths fail";
+            severity = 10;
+            occurrenceRating = 2;
+            detection = 7;
+            rpn = 140;
+            ucaRef = "UCA-001";
+            hazardRef = "H-1";
+            stateRef = "FAULT";
+            sourceDoc = "FMEA-BPS-001";
+            section = "6.1";
         }
-
-        // Expected: VIOLATED — responseTime_s = 9999 > 5.0 s limit
-        assert requirement controllerResponseCheck : UCA_001_ControllerNoActivatePumpA { subject sys; }
-
-        // Expected: VIOLATED — combined flow = 0 < 0.030 m³/s design inflow
-        assert requirement dischargeCheck : DischargeCapacityRequirement {
-            subject sys;
-            bind dischargeCheck.designInflow = 0.030;
-        }
-
-        // Expected: VIOLATED — alarm delay = 9999 s >> 2.0 s limit
-        assert requirement alarmCheck : AlarmResponseRequirement { subject sys; }
+        attribute :>> responseTime_s = 9999.0; // FAULT: controller hung
     }
+    part fmC001_alarm : AlarmSystem { attribute :>> activationDelay_s = 9999.0; } // output frozen
+    part fmC001_pumpA : BilgePumpA { attribute :>> flowRate = 0.0; }
+    part fmC001_pumpB : BilgePumpB { attribute :>> flowRate = 0.0; }
+    // VIOLATED: responseTime 9999 > 5.0 s [BPS-REQ-005]
+    attribute FM_C_001_activation : Boolean = fmC001_controller.responseTime_s <= 5.0;
+    // VIOLATED: alarm delay 9999 > 2.0 s [BPS-REQ-003]
+    attribute FM_C_001_alarm : Boolean = fmC001_alarm.activationDelay_s <= 2.0;
+    // VIOLATED: combined flow 0 < 0.030 m^3/s [BPS-REQ-004]
+    attribute FM_C_001_discharge : Boolean = fmC001_pumpA.flowRate + fmC001_pumpB.flowRate >= 0.030;
+
     // -------------------------------------------------------------------------
-    // FMEA Negative Test 5: Failover Not Triggered
-    // Failure Mode: FM-C-003 (PumpController failover path disabled)
-    // RPN: 90 (S=9, O=2, D=5) \u2014 below threshold but Severity=9 flags mandatory review
-    // SOURCE: FMEA-BPS-001 \u00a76.3; SIM-CTRL-001 \u00a73.2 (no-failover scenario)
-    // EXPECTED: FailoverSwitchTimingRequirement VIOLATED
-    //           DischargeCapacityRequirement VIOLATED
-    // \u0394 GAP CLOSED: BPS-REQ-002 verified structural redundancy (isRedundant==true) but
-    //   did not verify failover TIMING. This test closes that gap via BPS-REQ-006.
+    // FM-C-003: PumpController failover not triggered (failoverTime 9999).
+    // RPN=90 (Severity=9 flags mandatory review).  State: FAILOVER.
+    // SOURCE: FMEA-BPS-001 §6.3; SIM-CTRL-001 §3.2 (no-failover scenario).
+    // GAP CLOSED: BPS-REQ-002 verified structural redundancy but not failover
+    // TIMING; this closes it via BPS-REQ-006.
+    // EXPECTED VIOLATED: FailoverSwitchTimingRequirement, DischargeCapacityRequirement.
     // -------------------------------------------------------------------------
-    #FailureMode {
-        fmId            = "FM-C-003";
-        component       = "PumpController";
-        instance        = "controller";
-        failureModeText = "Failover path not triggered \u2014 Pump B command never issued after Pump A fault";
-        failureEffect   = "Pump A fault uncompensated; combined discharge flow drops to zero";
-        severity        = 9;
-        occurrence      = 2;
-        detection       = 5;
-        rpn             = 90;
-        ucaRef          = "UCA-004";
-        hazardRef       = "H-4";
-        stateRef        = "FAILOVER";
-        sourceDoc       = "FMEA-BPS-001";
-        section         = "6.3";
+    part fmC003_controller : PumpController {
+        @FailureMode {
+            fmId = "FM-C-003";
+            component = "PumpController";
+            instance = "controller";
+            failureModeText = "Failover path not triggered -- Pump B command never issued";
+            failureEffect = "Pump A fault uncompensated; combined discharge drops to zero";
+            severity = 9;
+            occurrenceRating = 2;
+            detection = 5;
+            rpn = 90;
+            ucaRef = "UCA-004";
+            hazardRef = "H-4";
+            stateRef = "FAILOVER";
+            sourceDoc = "FMEA-BPS-001";
+            section = "6.3";
+        }
+        attribute :>> failoverTime_s = 9999.0; // FAULT: failover command never issued
     }
-    analysis def FMEA_FailoverNotTriggered {
-        subject sys : BilgePumpSystem {
-            bind sys.sensor.waterLevel          = 0.28;    // Valid \u2014 flood in progress
-            bind sys.controller.triggerLevel_m  = 0.25;    // Nominal trigger
-            bind sys.controller.responseTime_s  = 1.0;     // Controller responds to level
-            bind sys.controller.failoverTime_s  = 9999.0;  // FAULT: failover command never issued
-            bind sys.pumpA.flowRate             = 0.0;     // FAULT: Pump A failed (zero flow)
-            bind sys.pumpA.efficiency           = 0.82;    // Irrelevant \u2014 pump not running
-            bind sys.pumpA.runHours             = 120.0;
-            bind sys.pumpB.flowRate             = 0.0;     // Not activated \u2014 failover not triggered
-            bind sys.pumpB.efficiency           = 0.82;
-            bind sys.pumpB.runHours             = 85.0;
-            bind sys.pumpB.isRedundant          = true;    // Structurally redundant but not activated
-            bind sys.discharge.pipeLossFactor   = 0.05;
-            bind sys.alarm.activationDelay_s    = 0.5;     // Alarm fires normally
-            bind sys.alarm.isActive             = true;
-            bind sys.ui.overrideActive          = false;
-        }
-
-        // Failover timing constraint \u2014 expected VIOLATED (9999.0 s > 3.0 s)
-        // SOURCE: SIM-CTRL-001 \u00a73.2 no-failover scenario; FM-C-003
-        constraint failoverTimingCheck : FailoverSwitchTimeConstraint {
-            bind failoverTimingCheck.failoverTime_s    = 9999.0;
-            bind failoverTimingCheck.maxFailoverTime_s = 3.0;
-        }
-
-        // Expected: VIOLATED \u2014 failoverTime_s = 9999.0 > 3.0 s [BPS-REQ-006]
-        // Linked: PUMP_A_ACTIVE \u2192 FAILOVER transition guard (StateMachine.sysml)
-        assert requirement failoverTimingReq : FailoverSwitchTimingRequirement { subject sys; }
-
-        // Expected: VIOLATED \u2014 combined flow = 0 < 0.030 m\u00b3/s design inflow
-        assert requirement dischargeCheck : DischargeCapacityRequirement {
-            subject sys;
-            bind dischargeCheck.designInflow = 0.030;
-        }
-    }
-}
+    part fmC003_pumpA : BilgePumpA { attribute :>> flowRate = 0.0; } // Pump A failed
+    part fmC003_pumpB : BilgePumpB { attribute :>> flowRate = 0.0; } // failover not triggered
+    // VIOLATED: failoverTime 9999 > 3.0 s [BPS-REQ-006]
+    attribute FM_C_003_failover : Boolean = fmC003_controller.failoverTime_s <= 3.0;
+    // VIOLATED: combined flow 0 < 0.030 m^3/s [BPS-REQ-004]
+    attribute FM_C_003_discharge : Boolean = fmC003_pumpA.flowRate + fmC003_pumpB.flowRate >= 0.030;
+} // package BilgePump_FMEA

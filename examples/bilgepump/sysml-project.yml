@@ -22,6 +22,15 @@
 name: BilgePumpSystem
 description: "SysML v2 bilge pump verification — IMO MARPOL, DNV, IEC 60945, SOLAS"
 
+# publish_root — the umbrella package name for the UNIFIED single-project publish.
+# make_publish_notebook.py loads every layer below into the kernel, then emits an
+# umbrella `package <publish_root> { import BilgePump_<each layer>::*; }` cell and
+# a single `%publish <publish_root>`. Publishing one package to one project name
+# keeps the project UUID stable across republishes (vs. one project per layer,
+# where per-layer UUIDs drift). Adding a new layer below is automatically folded
+# into the umbrella — no other file needs editing for the publish step.
+publish_root: BilgePump
+
 # All 9 layers — full model including safety, FMEA, UQ, and state machine extensions.
 layers:
   - RAAML.sysml

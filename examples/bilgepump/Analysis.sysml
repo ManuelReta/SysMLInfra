@@ -1,475 +1,234 @@
 // =============================================================================
 // BilgePump::Analysis
 // Layer: Analysis
-// Purpose: Physics constraint definition and analysis case (the "test runner").
+// Purpose: Physics constraint definitions and the verification cases (the
+// "test runner") that evaluate every system requirement.
 //
 // Import chain: Analysis imports Library, Architecture, and Requirements.
-//   Library ← Architecture ← Requirements ← Analysis   (no cycles)
+// Library <- Architecture <- Requirements <- Analysis   (no cycles)
 //
-// HOW THE ANALYSIS CASE ACTS AS A TEST RUNNER
-// ─────────────────────────────────────────────
-// In SysML v2, an 'analysis def' is an action definition specialised for
-// evaluation.  It declares:
-//   • A 'subject' — the system instance under test (BilgePumpSystem)
-//   • 'assert requirement' statements — each is a test case
-//   • 'bind' statements — wire physical attribute values from the subject
-//     into constraint parameters
+// HOW THE VERIFICATION CASES WORK (kernel-evaluable form)
+// -------------------------------------------------------
+// The SysML v2 Pilot kernel does not execute `assert requirement` statements,
+// and it cannot override an attribute value that Architecture already binds
+// (e.g. `attribute waterLevel = 0.15;`).  To obtain machine-checkable PASS/FAIL
+// verdicts that the pipeline can capture with `%eval`, each requirement is
+// re-expressed here as a computed Boolean attribute on a concrete subject:
 //
-// When executed by the SysML v2 Pilot API server, each 'assert requirement'
-// is evaluated against the bound attribute values and returns SATISFIED or
-// VIOLATED.  The analysis def is therefore the integration harness that:
-//   1. Assembles the system (subject binding)
-//   2. Runs every requirement check (assert statements)
-//   3. Evaluates the physics model (PumpFlowPhysics constraint)
-//   4. Reports pass/fail per requirement
+// part bpVerification : BilgePumpSystem {
+// attribute BPS_REQ_001_waterLevel : Boolean = sensor.waterLevel <= 0.3;
+// }
 //
-// In GUI tools (Cameo Systems Modeler, Eclipse Papyrus-SysML):
-//   Executing this node generates a Verification & Validation (V&V) matrix
-//   showing traceability from each requirement to its pass/fail result.
+// The subject `bpVerification` is a usage of BilgePumpSystem, so it INHERITS
+// every nominal attribute value declared in Architecture.sysml.  Attributes
+// that Architecture leaves unbound (controller.failoverTime_s, sensor.accuracy_m)
+// are supplied here via nested redefinition `attribute :>> name = value;`.
 //
-// In a CI/CD pipeline (GitHub Actions / Jenkins):
-//   The Pilot REST API can be called headlessly — POST the project, POST an
-//   analysis execution request, GET results.  Exit code 1 on any VIOLATED.
+// Each Boolean is queryable headlessly:
+// %eval BilgePump_Analysis::bpVerification.BPS_REQ_001_waterLevel
+// -> LiteralBoolean true     (SATISFIED)
+// The publish pipeline emits one %eval per Boolean and records the verdict in
+// the `sysml_assertions` database table (see materialize_sysml_values.py).
+//
+// Negative (fault) verdicts live in FMEA.sysml; parametric-sweep verdicts in
+// UQ.sysml.  The two physics constraint defs below are reused by both layers.
 // =============================================================================
 
-package 'BilgePump::Analysis' {
+package BilgePump_Analysis {
+    private import ScalarValues::*;
+    public import BilgePump_Library::*;
+    public import BilgePump_Architecture::*;
+    public import BilgePump_Requirements::*;
 
-    import 'BilgePump::Library'::*;
-    import 'BilgePump::Architecture'::*;
-    import 'BilgePump::Requirements'::*;
-//
     // =========================================================================
-    // StateTransitionTimingPhysics  — state machine transition timing budget
+    // StateTransitionTimingPhysics  -- state machine transition timing budget
     //
     // Models the timing chain from sensor threshold crossing to pump activation
-    // command, as measured by the Simulink discrete-event model SIM-CTRL-001:
-    //   totalTime_s = samplingLatency_s + processingTime_s + commandLatency_s
-    //
-    // The constraint asserts totalTime_s ≤ maxResponseTime_s.
-    //
-    // EXTERNAL TOOL BINDING:
-    //   ← Simulink/Stateflow discrete-event model (SIM-CTRL-001 §3.1):
-    //     samplingLatency_s = 0.1 s  (100 ms sample interval)
-    //     processingTime_s  = 0.9 s  (firmware processing, nominal)
-    //     commandLatency_s  = 0.0 s  (direct GPIO — negligible)
-    //     → totalTime_s = 1.0 s (nominal) ≤ 5.0 s maxResponseTime_s ✓
-    //   Watchdog recovery: processingTime_s = 3.9 s → total = 4.9 s ≤ 5.0 s (marginal)
-    //   Hang case (FM-C-001): totalTime_s = 9999.0 s >> maxResponseTime_s → VIOLATED
+    // command (Simulink discrete-event model SIM-CTRL-001 §3.1):
+    // totalTime_s = samplingLatency_s + processingTime_s + commandLatency_s
+    // and asserts totalTime_s <= maxResponseTime_s.
     //
     // Linked requirement: BPS-REQ-005 (ControllerActivationTimingRequirement)
-    // Linked state:       MONITORING → PUMP_A_ACTIVE transition (StateMachine.sysml)
+    // Linked state:       MONITORING -> PUMP_A_ACTIVE transition (StateMachine.sysml)
     // =========================================================================
     constraint def StateTransitionTimingPhysics {
-        // Input: timing budget components
-        attribute samplingLatency_s : Real;   // Sensor poll interval (s)
-        attribute processingTime_s  : Real;   // Firmware processing time (s)
-        attribute commandLatency_s  : Real;   // Output command transmission latency (s)
-        // Input: timing bound from requirement
-        attribute maxResponseTime_s : Real;   // Maximum allowed response time (s) [BPS-REQ-005]
-//
-        // Computed: total response time
-        attribute totalTime_s       : Real;
-//
-        // Timing budget assertion
+        attribute samplingLatency_s : Real; // Sensor poll interval (s)
+        attribute processingTime_s : Real; // Firmware processing time (s)
+        attribute commandLatency_s : Real; // Output command transmission latency (s)
+        attribute maxResponseTime_s : Real; // Maximum allowed response time (s) [BPS-REQ-005]
+        attribute totalTime_s : Real; // Computed total response time
+
         assert constraint {
-            totalTime_s == samplingLatency_s + processingTime_s + commandLatency_s
-            and totalTime_s <= maxResponseTime_s
+            totalTime_s == samplingLatency_s + processingTime_s + commandLatency_s and
+            totalTime_s <= maxResponseTime_s
         }
     }
-//
+
     // =========================================================================
-    // PumpFlowPhysics  — physics constraint definition
+    // PumpFlowPhysics  -- net discharge capacity physics constraint
     //
-    // Models the net discharge capacity of the bilge pump system after
-    // accounting for hydraulic efficiency and pipe friction losses.
-    //
-    // Equation:
-    //   Q_net = (Q_A + Q_B) × η × (1 − λ)
-    //   where:
-    //     Q_A   = Pump A volumetric flow rate (m³/s)
-    //     Q_B   = Pump B volumetric flow rate (m³/s)
-    //     η     = hydraulic efficiency (0.0–1.0; from CFD pump curve)
-    //     λ     = Darcy-Weisbach pipe loss factor (0.0–1.0; from P&ID hydraulic calc)
-    //     Q_net = net effective discharge rate (m³/s)
-    //
-    // The constraint asserts Q_net ≥ Q_inflow (design inflow from stability analysis).
+    // Q_net = (Q_A + Q_B) * eta * (1 - lambda)   and   Q_net >= Q_inflow
     //
     // EXTERNAL TOOL BINDINGS (hypothetical):
-    //   ← CFD tool (ANSYS Fluent / OpenFOAM): exports η as a function of impeller
-    //     speed; in a full digital twin this would be a lookup table binding.
-    //   ← P&ID hydraulic calculation (Caesar II / PIPESIM): exports λ per pipe run.
-    //   ← Maxsurf / NAPA stability module: exports Q_inflow from damage case.
-    //   → Structural analysis (FEA): Q_net feeds back into flooding time calculation
-    //     which drives hydrostatic pressure loads on bulkheads.
+    // <- CFD (ANSYS Fluent / OpenFOAM): hydraulic efficiency eta
+    // <- P&ID hydraulic calc (Caesar II / PIPESIM): pipe loss factor lambda
+    // <- Maxsurf / NAPA stability module: design inflow Q_inflow
     // =========================================================================
     constraint def PumpFlowPhysics {
-        // Input parameters — bound to system attributes in the analysis case
-        attribute flowRateA     : Real;   // Pump A flow rate (m³/s)
-        attribute flowRateB     : Real;   // Pump B flow rate (m³/s)
-        attribute efficiency    : Real;   // Hydraulic efficiency η (0.0–1.0)
-        attribute pipeLossFactor: Real;   // Pipe friction factor λ (0.0–1.0)
-        attribute designInflow  : Real;   // Required minimum discharge (m³/s)
+        attribute flowRateA : Real; // Pump A flow rate (m^3/s)
+        attribute flowRateB : Real; // Pump B flow rate (m^3/s)
+        attribute efficiency : Real; // Hydraulic efficiency eta (0.0-1.0)
+        attribute pipeLossFactor : Real; // Pipe friction factor lambda (0.0-1.0)
+        attribute designInflow : Real; // Required minimum discharge (m^3/s)
+        attribute netFlow : Real; // Computed net effective discharge
 
-        // Computed result — net effective discharge rate
-        attribute netFlow       : Real;
-
-        // Physics assertion: computed net flow must meet or exceed design inflow
         assert constraint {
-            netFlow == (flowRateA + flowRateB) * efficiency * (1.0 - pipeLossFactor)
-            and netFlow >= designInflow
+            netFlow == (flowRateA + flowRateB) * efficiency * (1.0 - pipeLossFactor) and
+            netFlow >= designInflow
         }
     }
 
     // =========================================================================
-    // BilgePumpVerification  — analysis case (TEST RUNNER)
+    // bpVerification  -- functional verification case (POSITIVE / nominal)
     //
-    // This is the top-level analysis definition that acts as the complete
-    // verification harness for the bilge pump system.
+    // Subject inherits all nominal attribute values from Architecture.sysml.
+    // Each requirement is encoded as a computed Boolean (SATISFIED == true).
     //
-    // Execution sequence (as performed by the SysML v2 Pilot engine):
-    //   Step 1 — Subject instantiation: 'sys' is created as a usage of
-    //            BilgePumpSystem with attribute values set (see bind statements).
-    //   Step 2 — Requirement evaluation: each 'assert requirement' block is
-    //            resolved against the bound attribute values of 'sys'.
-    //            Result: SATISFIED or VIOLATED per requirement.
-    //   Step 3 — Physics constraint evaluation: PumpFlowPhysics parameters
-    //            are bound to sys attribute values; constraint assertion checked.
-    //   Step 4 — Results aggregated and returned by the API server.
-    //
-    // Nominal test values (positive test — all should be SATISFIED):
-    //   sensor.waterLevel       = 0.15 m    (below 0.3 m threshold)
-    //   pumpB.isRedundant       = true
-    //   alarm.activationDelay_s = 0.5 s     (below 2.0 s threshold)
-    //   pumpA.flowRate          = 0.025 m³/s
-    //   pumpB.flowRate          = 0.025 m³/s
-    //   efficiency              = 0.82
-    //   pipeLossFactor          = 0.05
-    //   designInflow            = 0.030 m³/s
-    //   → netFlow = (0.025+0.025) × 0.82 × (1−0.05) = 0.0389 m³/s ≥ 0.030 ✓
-    //
-    // Negative test (run from Verification.ipynb Cell 8):
-    //   pumpA.flowRate = 0.0  →  DischargeCapacityRequirement VIOLATED
+    // Nominal values (from Architecture): sensor.waterLevel=0.15,
+    // pumpA/B.flowRate=0.025, efficiency=0.82, discharge.pipeLossFactor=0.05,
+    // alarm.activationDelay_s=0.5, pumpB.isRedundant=true.
+    // netFlow = (0.025+0.025) * 0.82 * (1-0.05) = 0.03895 m^3/s >= 0.030  OK
     // =========================================================================
-    analysis def BilgePumpVerification {
+    part bpVerification : BilgePumpSystem {
+        // Design inflow from damage stability analysis (Maxsurf / NAPA export)
+        attribute designInflow : Real = 0.030;
+        // Net effective discharge (PumpFlowPhysics evaluated on nominal values)
+        attribute netFlow : Real =
+            (pumpA.flowRate + pumpB.flowRate) * pumpA.efficiency * (1.0 - discharge.pipeLossFactor);
 
-        // The system under verification — instantiated with nominal attribute values
-        subject sys : BilgePumpSystem {
-
-            // --- BilgeWaterSensor ---
-            // Nominal: water level well below trigger threshold
-            // SOURCE: representative bilge sounding during calm-water operation
-            bind sys.sensor.waterLevel          = 0.15;
-
-            // --- PumpController ---
-            // Trigger level: controller activates pump at 0.25 m (safety margin below 0.3 m req)
-            bind sys.controller.triggerLevel_m  = 0.25;
-            bind sys.controller.responseTime_s  = 1.0;
-
-            // --- PowerSupply ---
-            // Main bus active; emergency bus not yet engaged
-            bind sys.power.nominalVoltage       = 440.0;
-            bind sys.power.redundancyActive     = false;
-
-            // --- BilgePumpA (primary) ---
-            // Flow rate from vendor test certificate / CFD pump curve at rated speed
-            bind sys.pumpA.flowRate             = 0.025;
-            bind sys.pumpA.efficiency           = 0.82;
-            bind sys.pumpA.runHours             = 120.0;
-
-            // --- BilgePumpB (redundant) ---
-            // Identical to A; isRedundant confirms DNV classification compliance
-            bind sys.pumpB.flowRate             = 0.025;
-            bind sys.pumpB.efficiency           = 0.82;
-            bind sys.pumpB.runHours             = 85.0;
-            bind sys.pumpB.isRedundant          = true;
-
-            // --- DischargeLine ---
-            // Pipe friction factor from P&ID hydraulic calculation (Darcy-Weisbach)
-            bind sys.discharge.pipeLossFactor   = 0.05;
-
-            // --- AlarmSystem ---
-            // 0.5 s activation delay — well within IEC 60945 2.0 s limit
-            bind sys.alarm.activationDelay_s    = 0.5;
-            bind sys.alarm.isActive             = false;
-
-            // --- OperatorInterface ---
-            // No override active in nominal test
-            bind sys.ui.overrideActive          = false;
-        }
-
-        // Physics constraint usage — parameters bound to system attribute values
-        // This evaluates Q_net and confirms it meets the design inflow requirement.
-        // Design inflow of 0.030 m³/s from damage stability analysis (Maxsurf export).
-        constraint physicsCheck : PumpFlowPhysics {
-            bind physicsCheck.flowRateA      = sys.pumpA.flowRate;
-            bind physicsCheck.flowRateB      = sys.pumpB.flowRate;
-            bind physicsCheck.efficiency     = sys.pumpA.efficiency;
-            bind physicsCheck.pipeLossFactor = sys.discharge.pipeLossFactor;
-            bind physicsCheck.designInflow   = 0.030;
-        }
-
-        // =====================================================================
-        // TEST CASES — assert requirement statements
-        // Each line is one test case. The analysis engine evaluates the
-        // requirement def's constraint body against the bound 'sys' values.
-        // In a V&V matrix these map to individual rows with SATISFIED/VIOLATED.
-        // =====================================================================
-
-        // TEST 1: Water level must not exceed 0.3 m  [BPS-REQ-001]
-        assert requirement waterLevelCheck : WaterLevelRequirement { subject sys; }
-
-        // TEST 2: Pump B must be designated redundant  [BPS-REQ-002]
-        assert requirement redundancyCheck : PumpRedundancyRequirement { subject sys; }
-
-        // TEST 3: Alarm activation must be within 2.0 s  [BPS-REQ-003]
-        assert requirement alarmCheck : AlarmResponseRequirement { subject sys; }
-
-        // TEST 4: Combined discharge must meet design inflow  [BPS-REQ-004]
-        // Note: this also requires the physics constraint (physicsCheck) above
-        // to have been evaluated; the require constraint in DischargeCapacityRequirement
-        // checks pumpA.flowRate + pumpB.flowRate against the designInflow attribute.
-        assert requirement dischargeCheck : DischargeCapacityRequirement {
-            subject sys;
-            bind dischargeCheck.designInflow = 0.030;
-        }
-
-        // =====================================================================
-        // OBJECTIVE (documentation)
-        // This analysis case serves as the complete integration test harness.
-        // It demonstrates the following SysML v2 model features:
-        //   • part def / part usage separation (Library vs Architecture)
-        //   • Typed port connections with directional signal flow
-        //   • Requirement defs with assert constraint bodies
-        //   • Constraint defs for physics-based verification
-        //   • bind statements connecting architecture attributes to constraints
-        //   • analysis def as the V&V execution entry point
-        //
-        // To add a new test scenario:
-        //   1. Add a new requirement def in Requirements.sysml
-        //   2. Add an 'assert requirement' line here
-        //   3. Override attribute values in the 'subject sys' block
-        //   4. Re-run via Verification.ipynb Cell 7
-        // =====================================================================
+        // TEST BPS-REQ-001: water level must not exceed 0.3 m  [MARPOL 73/78]
+        attribute BPS_REQ_001_waterLevel : Boolean = sensor.waterLevel <= 0.3;
+        // TEST BPS-REQ-002: Pump B must be the designated redundant unit  [DNV Pt.4 Ch.6]
+        attribute BPS_REQ_002_redundancy : Boolean = pumpB.isRedundant == true;
+        // TEST BPS-REQ-003: alarm activation within 2.0 s  [IEC 60945 §4.3]
+        attribute BPS_REQ_003_alarm : Boolean = alarm.activationDelay_s <= 2.0;
+        // TEST BPS-REQ-004: combined discharge meets design inflow  [SOLAS II-1 Reg.35]
+        attribute BPS_REQ_004_discharge : Boolean = pumpA.flowRate + pumpB.flowRate >= designInflow;
+        // Physics: net effective discharge meets design inflow (efficiency + losses)
+        attribute physicsCheck : Boolean = netFlow >= designInflow;
     }
-//
+
     // =========================================================================
-    // BilgePumpTimingVerification  — timing analysis case (TEST RUNNER)
+    // bpTimingVerification  -- timing verification case (POSITIVE / nominal)
     //
-    // Verifies the two timing requirements introduced by the state machine
-    // analysis (BPS-REQ-005, BPS-REQ-006) and re-asserts the alarm timing
-    // requirement (BPS-REQ-003) in the same harness.
+    // Verifies the two timing requirements (BPS-REQ-005, BPS-REQ-006) and
+    // re-checks alarm timing (BPS-REQ-003) in the same harness.
+    // failoverTime_s is unbound in Architecture, so it is supplied here.
     //
-    // Nominal test values (positive test — all should be SATISFIED):
-    //   controller.responseTime_s = 1.0 s   (SIM-CTRL-001 §3.1 nominal)
-    //   controller.failoverTime_s = 0.8 s   (SIM-CTRL-001 §3.2 normal failover)
-    //   alarm.activationDelay_s   = 0.5 s   (nominal; well within 2.0 s limit)
-    //   Timing budget: 0.1 s (sampling) + 0.9 s (processing) + 0.0 s (cmd) = 1.0 s
-    //   → totalTime_s = 1.0 s ≤ 5.0 s ✓
-    //
-    // Negative tests (run from Safety.ipynb):
-    //   FMEA_ControllerHang (FMEA.sysml): responseTime_s = 9999.0 → BPS-REQ-005 VIOLATED
-    //   FMEA_FailoverNotTriggered (FMEA.sysml): failoverTime_s = 9999.0 → BPS-REQ-006 VIOLATED
+    // Nominal: responseTime_s=1.0 (SIM-CTRL-001 §3.1), failoverTime_s=0.8
+    // (SIM-CTRL-001 §3.2), alarm.activationDelay_s=0.5.
     // =========================================================================
-    analysis def BilgePumpTimingVerification {
-//
-        subject sys : BilgePumpSystem {
-//
-            // --- PumpController timing attributes (UNDER TEST) ---
-            // Nominal response time from SIM-CTRL-001 §3.1
-            bind sys.controller.responseTime_s  = 1.0;
-            // Nominal failover time from SIM-CTRL-001 §3.2
-            bind sys.controller.failoverTime_s  = 0.8;
-            // Trigger level (required for subject completeness)
-            bind sys.controller.triggerLevel_m  = 0.25;
-//
-            // --- BilgeWaterSensor (nominal) ---
-            bind sys.sensor.waterLevel          = 0.15;
-//
-            // --- PowerSupply (nominal) ---
-            bind sys.power.nominalVoltage       = 440.0;
-            bind sys.power.redundancyActive     = false;
-//
-            // --- BilgePumpA and B (nominal — not timing-critical here) ---
-            bind sys.pumpA.flowRate             = 0.025;
-            bind sys.pumpA.efficiency           = 0.82;
-            bind sys.pumpA.runHours             = 120.0;
-            bind sys.pumpB.flowRate             = 0.025;
-            bind sys.pumpB.efficiency           = 0.82;
-            bind sys.pumpB.runHours             = 85.0;
-            bind sys.pumpB.isRedundant          = true;
-//
-            // --- DischargeLine (nominal) ---
-            bind sys.discharge.pipeLossFactor   = 0.05;
-//
-            // --- AlarmSystem timing (UNDER TEST) ---
-            // 0.5 s activation delay — well within IEC 60945 2.0 s limit
-            bind sys.alarm.activationDelay_s    = 0.5;
-            bind sys.alarm.isActive             = false;
-//
-            // --- OperatorInterface (nominal) ---
-            bind sys.ui.overrideActive          = false;
+    part bpTimingVerification : BilgePumpSystem {
+        // Failover time not bound in Architecture -> supply the nominal value
+        part :>> controller {
+            attribute :>> failoverTime_s = 0.8; // SIM-CTRL-001 §3.2 normal failover
         }
-//
-        // Timing budget constraint usage
-        // Decomposes responseTime_s into sampling + processing + command latency.
-        // SOURCE: SIM-CTRL-001 §3.1 (100 ms sample interval + 900 ms processing)
-        constraint timingBudget : StateTransitionTimingPhysics {
-            bind timingBudget.samplingLatency_s = 0.1;    // 100 ms sample interval
-            bind timingBudget.processingTime_s  = 0.9;    // Firmware processing (nominal)
-            bind timingBudget.commandLatency_s  = 0.0;    // Direct GPIO — negligible
-            bind timingBudget.maxResponseTime_s = 5.0;    // Limit from BPS-REQ-005
-        }
-//
-        // TEST 5: Controller activation within 5.0 s of threshold crossing [BPS-REQ-005]
-        // Linked: MONITORING → PUMP_A_ACTIVE transition (StateMachine.sysml)
-        assert requirement activationTimingCheck : ControllerActivationTimingRequirement { subject sys; }
-//
-        // TEST 6: Failover switch within 3.0 s of Pump A fault [BPS-REQ-006]
-        // Linked: PUMP_A_ACTIVE → FAILOVER transition (StateMachine.sysml)
-        assert requirement failoverTimingCheck : FailoverSwitchTimingRequirement { subject sys; }
-//
-        // TEST 3 (re-asserted in timing context): Alarm within 2.0 s [BPS-REQ-003]
-        // Linked: PUMP_A_ACTIVE → ALARM_TRIGGERED transition (StateMachine.sysml)
-        assert requirement alarmTimingCheck : AlarmResponseRequirement { subject sys; }
+
+        // Timing budget decomposition (StateTransitionTimingPhysics, nominal)
+        // 0.1 s sampling + 0.9 s processing + 0.0 s command = 1.0 s <= 5.0 s
+        attribute timingBudgetTotal_s : Real = 0.1 + 0.9 + 0.0;
+        attribute timingBudgetOk : Boolean = timingBudgetTotal_s <= 5.0;
+
+        // TEST BPS-REQ-005: controller activation within 5.0 s of threshold crossing
+        attribute BPS_REQ_005_activation : Boolean = controller.responseTime_s <= 5.0;
+        // TEST BPS-REQ-006: failover switch within 3.0 s of Pump A fault
+        attribute BPS_REQ_006_failover : Boolean = controller.failoverTime_s <= 3.0;
+        // TEST BPS-REQ-003 (re-asserted in timing context): alarm within 2.0 s
+        attribute BPS_REQ_003_alarmTiming : Boolean = alarm.activationDelay_s <= 2.0;
     }
-//
+
     // =========================================================================
-    // BilgePumpFaultToleranceVerification  — fault-tolerance analysis case
+    // bpFaultToleranceVerification  -- fault-tolerance verification (POSITIVE)
     //
-    // Verifies the FT-* requirements (BPS-FT-001..004) that decompose the
-    // abstract safety property:
-    //   "The system shall remain safe under all conditions within its
-    //    operating envelope."
+    // Verifies the FT-* requirements (BPS-FT-001..004) and OOR-001 that
+    // decompose the abstract property "the system shall remain safe under all
+    // conditions within its operating envelope".
     //
-    // These requirements are more complex than REQ-001..006:
-    //   FT-001 / FT-003: multi-attribute (sensor + accuracy)
-    //   FT-002: product chain (flowRate × efficiency × (1 − loss))
-    //   FT-004: cross-component conjunction (4 attributes from 4 parts)
+    // sensor.accuracy_m (unbound in Architecture) supplied here = 0.03
+    // (±3 cm sensor class, IEC 60770-1).  inflowRate_m3s=0.020 and
+    // criticalLevel_m=0.5 are inherited from Architecture (BilgePumpSystem).
+    // failoverTime_s supplied for completeness.
     //
-    // Test scenario: nominal values with realistic sensor accuracy (±3 cm)
-    // and design-storm inflow from NAPA damage stability export (0.020 m³/s).
-    //
-    // Positive test — all FT-* requirements should be SATISFIED at these values.
-    // The margin for FT-003 is intentionally narrow (0.28 m vs 0.30 m limit)
-    // to demonstrate that the Z3 analyser (formal_analysis.py, Level 3) will
-    // find the envelope boundary at accuracy_m = 0.05.
-    //
-    // Linked analyser: bilgepump/formal_analysis.py (Levels 1–6)
+    // FT-001: 0.15 + 0.03 = 0.18 <= 0.30  OK
+    // FT-002: (0.025*0.82 + 0.025*0.82) * (1-0.05) = 0.03895 >= 0.030  OK
+    // FT-003: 0.25 + 0.03 = 0.28 <= 0.30  OK (narrow margin)
+    // FT-004: (1.0 + 0.5) * 0.020 = 0.030 <= 0.5 - 0.15 = 0.35  OK
+    // OOR-001: overrideActive(false) == false  OR  alarm.isActive  -> true  OK
     // =========================================================================
-    analysis def BilgePumpFaultToleranceVerification {
-
-        subject sys : BilgePumpSystem {
-
-            // --- BilgeWaterSensor ---
-            // Nominal water level (calm-water operation; below trigger threshold)
-            bind sys.sensor.waterLevel          = 0.15;
-            // Sensor accuracy class: ±3 cm (typical ultrasonic / pressure sensor)
-            // SOURCE: sensor calibration certificate (accuracy class IEC 60770-1)
-            // NOTE: accuracy_m=0.03 means FT-001 evaluates 0.15+0.03=0.18 ≤ 0.30 ✓
-            //       FT-003 evaluates 0.25+0.03=0.28 ≤ 0.30 ✓  (narrow margin)
-            bind sys.sensor.accuracy_m          = 0.03;
-
-            // --- PumpController ---
-            bind sys.controller.triggerLevel_m  = 0.25;
-            bind sys.controller.responseTime_s  = 1.0;
-            bind sys.controller.failoverTime_s  = 0.8;
-
-            // --- PowerSupply ---
-            bind sys.power.nominalVoltage       = 440.0;
-            bind sys.power.redundancyActive     = false;
-
-            // --- BilgePumpA (primary) ---
-            bind sys.pumpA.flowRate             = 0.025;
-            bind sys.pumpA.efficiency           = 0.82;
-            bind sys.pumpA.runHours             = 120.0;
-
-            // --- BilgePumpB (redundant) ---
-            bind sys.pumpB.flowRate             = 0.025;
-            bind sys.pumpB.efficiency           = 0.82;
-            bind sys.pumpB.runHours             = 85.0;
-            bind sys.pumpB.isRedundant          = true;
-
-            // --- DischargeLine ---
-            bind sys.discharge.pipeLossFactor   = 0.05;
-
-            // --- AlarmSystem ---
-            bind sys.alarm.activationDelay_s    = 0.5;
-            bind sys.alarm.isActive             = false;
-
-            // --- OperatorInterface ---
-            bind sys.ui.overrideActive          = false;
-
-            // --- System-level operational parameters (new in Architecture.sysml) ---
-            // Design storm inflow from NAPA stability export (m³/s)
-            // Overflow window at nominal values: (0.5 - 0.15) / 0.020 = 17.5 s
-            // Timing chain: 1.0 + 0.5 = 1.5 s  →  FT-004: 1.5 × 0.020 = 0.030 ≤ 0.350 ✓
-            bind sys.inflowRate_m3s             = 0.020;
-            // Max tolerable level from SOLAS II-1 structural margin
-            bind sys.criticalLevel_m            = 0.5;
+    part bpFaultToleranceVerification : BilgePumpSystem {
+        // Sensor accuracy not bound in Architecture -> supply the class value
+        part :>> sensor {
+            attribute :>> accuracy_m = 0.03; // ±3 cm (IEC 60770-1 accuracy class)
+        }
+        part :>> controller {
+            attribute :>> failoverTime_s = 0.8;
         }
 
-        // TEST FT-001: Reported + accuracy margin stays within MARPOL limit
-        assert requirement sensorAccuracyCheck : SensorAccuracyBoundRequirement { subject sys; }
+        attribute designInflow : Real = 0.030;
+        attribute netFlow : Real =
+            (pumpA.flowRate * pumpA.efficiency + pumpB.flowRate * pumpB.efficiency) *
+            (1.0 - discharge.pipeLossFactor);
 
-        // TEST FT-002: Net effective discharge (with efficiency + pipe loss) ≥ design inflow
-        assert requirement effectiveDischargeCheck : EffectiveDischargeCapacityRequirement {
-            subject sys;
-            bind effectiveDischargeCheck.designInflow = 0.030;
-        }
-
-        // TEST FT-003: Trigger level + accuracy margin stays within MARPOL limit
-        assert requirement triggerAccuracyCheck : TriggerLevelAccuracyRequirement { subject sys; }
-
-        // TEST FT-004: Timing chain (response + alarm) feasible vs physical overflow window
-        assert requirement responseWindowCheck : EndToEndResponseRequirement { subject sys; }
-
-        // TEST OOR-001: Override only after alarm active (Z3 Level 6 gap closure)
-        assert requirement overrideOrderingCheck : OverrideOrderingRequirement { subject sys; }
+        // TEST FT-001: reported level + sensor accuracy stays within MARPOL limit
+        attribute BPS_FT_001_sensorAccuracy : Boolean =
+            sensor.waterLevel + sensor.accuracy_m <= 0.3;
+        // TEST FT-002: net effective discharge (per-pump efficiency) >= design inflow
+        attribute BPS_FT_002_effDischarge : Boolean = netFlow >= designInflow;
+        // TEST FT-003: trigger level + sensor accuracy stays within MARPOL limit
+        attribute BPS_FT_003_triggerAccuracy : Boolean =
+            controller.triggerLevel_m + sensor.accuracy_m <= 0.3;
+        // TEST FT-004: timing chain feasible vs physical overflow window
+        attribute BPS_FT_004_responseWindow : Boolean =
+            (controller.responseTime_s + alarm.activationDelay_s) * inflowRate_m3s <=
+            criticalLevel_m - sensor.waterLevel;
+        // TEST OOR-001: override only after alarm active (Z3 Level-6 gap closure)
+        attribute BPS_OOR_001_overrideOrdering : Boolean =
+            ui.overrideActive == false or alarm.isActive == true;
     }
-//
+
     // =========================================================================
-    // V-MODEL TRACEABILITY LINKS — Phase 4
+    // V-MODEL TRACEABILITY (documentation)
     //
-    // SysML v2 §7.16: satisfy and verify relationships complete the V-model.
+    // SysML v2 satisfy/verify relationships complete the V-model, but the Pilot
+    // kernel in use rejects the `satisfy <RequirementDef> by <Type>;` and
+    // `verify <RequirementDef> by <AnalysisDef>;` forms (they require a
+    // requirement USAGE and a feature, not definitions/types).  The traceability
+    // is therefore recorded here as documentation; the executable evidence is
+    // the computed-Boolean verdicts above (positive), in FMEA.sysml (negative),
+    // and in UQ.sysml (parametric sweep).
     //
-    //   satisfy <RequirementDef> by <DesignElementType>;
-    //     → Left side of V: design element fulfils the requirement
-    //     → Placed here (Analysis) because Architecture cannot import Requirements
-    //       without creating a circular dependency (Requirements imports Architecture).
+    // satisfy WaterLevelRequirement                 by BilgeWaterSensor
+    // satisfy PumpRedundancyRequirement             by BilgePumpB
+    // satisfy AlarmResponseRequirement              by AlarmSystem
+    // satisfy DischargeCapacityRequirement          by BilgePumpA, BilgePumpB, DischargeLine
+    // satisfy EffectiveDischargeCapacityRequirement by BilgePumpA, BilgePumpB, DischargeLine
+    // satisfy ControllerActivationTimingRequirement by PumpController
+    // satisfy FailoverSwitchTimingRequirement       by PumpController
+    // satisfy SensorAccuracyBoundRequirement        by BilgeWaterSensor
+    // satisfy TriggerLevelAccuracyRequirement       by BilgeWaterSensor, PumpController
+    // satisfy EndToEndResponseRequirement           by PumpController, AlarmSystem
+    // satisfy OverrideOrderingRequirement           by PumpController, AlarmSystem, OperatorInterface
     //
-    //   verify <RequirementDef> by <AnalysisDef>;
-    //     → Right side of V: analysis case provides evidence of conformance.
-    //     → Complements 'assert requirement' in each analysis def above.
-    //
-    // Compatibility note: Pilot API JAR >= 2022-09 resolves satisfy/verify
-    // links as formal traceability; earlier JARs treat them as documentation.
+    // verify  WaterLevelRequirement                 by bpVerification
+    // verify  PumpRedundancyRequirement             by bpVerification
+    // verify  AlarmResponseRequirement              by bpVerification, bpTimingVerification
+    // verify  DischargeCapacityRequirement          by bpVerification
+    // verify  EffectiveDischargeCapacityRequirement by bpFaultToleranceVerification
+    // verify  ControllerActivationTimingRequirement by bpTimingVerification
+    // verify  FailoverSwitchTimingRequirement       by bpTimingVerification
+    // verify  SensorAccuracyBoundRequirement        by bpFaultToleranceVerification
+    // verify  TriggerLevelAccuracyRequirement       by bpFaultToleranceVerification
+    // verify  EndToEndResponseRequirement           by bpFaultToleranceVerification
+    // verify  OverrideOrderingRequirement           by bpTimingVerification
     // =========================================================================
-
-    // ── Satisfy links: design element type → requirement ─────────────────────
-    satisfy WaterLevelRequirement                   by BilgeWaterSensor;
-    satisfy PumpRedundancyRequirement               by BilgePumpB;
-    satisfy AlarmResponseRequirement                by AlarmSystem;
-    satisfy DischargeCapacityRequirement            by BilgePumpA, BilgePumpB, DischargeLine;
-    satisfy EffectiveDischargeCapacityRequirement   by BilgePumpA, BilgePumpB, DischargeLine;
-    satisfy ControllerActivationTimingRequirement   by PumpController;
-    satisfy FailoverSwitchTimingRequirement         by PumpController;
-    satisfy SensorAccuracyBoundRequirement          by BilgeWaterSensor;
-    satisfy TriggerLevelAccuracyRequirement         by BilgeWaterSensor, PumpController;
-    satisfy EndToEndResponseRequirement             by PumpController, AlarmSystem;
-    satisfy OverrideOrderingRequirement             by PumpController, AlarmSystem, OperatorInterface;
-
-    // ── Verify links: analysis def → requirement ──────────────────────────────
-    verify WaterLevelRequirement                    by BilgePumpVerification;
-    verify PumpRedundancyRequirement                by BilgePumpVerification;
-    verify AlarmResponseRequirement                 by BilgePumpVerification, BilgePumpTimingVerification;
-    verify DischargeCapacityRequirement             by BilgePumpVerification;
-    verify EffectiveDischargeCapacityRequirement    by BilgePumpFaultToleranceVerification;
-    verify ControllerActivationTimingRequirement    by BilgePumpTimingVerification;
-    verify FailoverSwitchTimingRequirement          by BilgePumpTimingVerification;
-    verify SensorAccuracyBoundRequirement           by BilgePumpFaultToleranceVerification;
-    verify TriggerLevelAccuracyRequirement          by BilgePumpFaultToleranceVerification;
-    verify EndToEndResponseRequirement              by BilgePumpFaultToleranceVerification;
-    verify OverrideOrderingRequirement              by BilgePumpTimingVerification;
-//
-}
-
+} // package BilgePump_Analysis
