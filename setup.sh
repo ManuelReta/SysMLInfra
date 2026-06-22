@@ -112,7 +112,7 @@ else
 fi
 
 # Post-install validation: verify kernel is registered.
-if uv run jupyter kernelspec list 2>/dev/null | grep -iq sysml; then
+if "$CONDA_BASE/envs/$SYSML_ENV/bin/jupyter" kernelspec list | grep -iq sysml; then
     echo "      ✓ SysML v2 kernel registered and ready."
 else
     echo ""
