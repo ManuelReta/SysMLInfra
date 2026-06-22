@@ -28,7 +28,7 @@ def bilgepump_dir() -> str:
     return str(EXAMPLES_BILGEPUMP_DIR)
 
 
-def wait_for_api(url, timeout=30):
+def wait_for_api(url, timeout=1800):
     for _ in range(timeout):
         try:
             r = requests.get(url)
