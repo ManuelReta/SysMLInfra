@@ -22,5 +22,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile_pilot_api
+    command: >
+      bash -c "
+      target/universal/stage/bin/sysml-v2-api-services
+      "
     ports:
       - "9000:9000"

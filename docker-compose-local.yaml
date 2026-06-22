@@ -16,7 +16,10 @@ services:
     build:
       secrets:
         - zscaler
-
+  sysmldb: 
+    extends: 
+      file: docker-compose.yaml
+      service: sysmldb
 secrets:
   zscaler:
     file: ${CERT_PATH}

@@ -44,9 +44,9 @@ def wait_for_api(url, timeout=30):
 def docker_compose():
     LOCAL_RUN = os.getenv("LOCAL")
     running = (
-        ["docker", "compose", "-f", "docker-compose.yaml", "up", "-d"]
+        ["docker", "compose", "-f", "docker-compose.yaml", "up", "--"]
         if LOCAL_RUN
-        else ["docker", "compose", "up", "-d"]
+        else ["docker", "compose", "-f", "docker-compose-local.yaml", "up", "-d"]
     )
 
     subprocess.run(running, check=True)
