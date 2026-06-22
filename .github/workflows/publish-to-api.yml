@@ -54,7 +54,7 @@ jobs:
           API_BASE: http://localhost:9000
         run: uv run python -m sys_infra.entry verify --publish
       - name: Run integration tests
-        run: uv run python -m pytest -m integration
+        run: uv run python -m pytest -m integration --no-docker
 
       - name: Upload publish state artifact
         if: always()
