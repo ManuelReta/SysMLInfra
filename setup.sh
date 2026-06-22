@@ -112,7 +112,7 @@ else
 fi
 
 # Post-install validation: verify kernel is registered
-if jupyter kernelspec list 2>/dev/null | grep -iq sysml; then
+if uv run jupyter kernelspec list 2>/dev/null | grep -iq sysml; then
     echo "      ✓ SysML v2 kernel registered and ready."
 else
     echo ""
