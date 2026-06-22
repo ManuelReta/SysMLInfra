@@ -5,6 +5,7 @@ Adds the repo root and scripts/ directory to sys.path so that verify.py,
 fault_tracer, and formal_analysis can be imported without installation.
 """
 
+import os
 import subprocess
 import time
 
@@ -41,7 +42,14 @@ def wait_for_api(url, timeout=30):
 
 @pytest.fixture(scope="session", autouse=True)
 def docker_compose():
-    subprocess.run(["docker", "compose", "up", "-d"], check=True)
+    LOCAL_RUN = os.getenv("LOCAL")
+    running = (
+        ["docker", "compose", "-f", "docker-compose.yaml", "up", "-d"]
+        if LOCAL_RUN
+        else ["docker", "compose", "up", "-d"]
+    )
+
+    subprocess.run(running, check=True)
 
     wait_for_api("http://localhost:9000")
 

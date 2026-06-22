@@ -72,10 +72,10 @@ jobs:
       - name: dummy-certs
         run: touch ${{ github.workspace }}/dummy.cer 
 
-      - name: Build the docker-compose stack
+      - name: Build and start the docker-compose services
         env:
           CERT_PATH: ${{ github.workspace }}/dummy.cer # Use dummy path
-        run: docker compose up --build --detach
+        run: docker compose up sysmldb sysml_v2_pilot_api --build --detach
 
       # -----------------------------------------------------------------------
       # 3. Publish: run commit.sh which reads sysml-project.yml for the layer
@@ -99,8 +99,9 @@ jobs:
       - name: Verify API persistence and constraints
         env:
           API_BASE: http://localhost:9000
-          # ${{ secrets.SYSML_API_BASE }}
         run: uv run python -m sys_infra.entry verify --publish
+      - name: Run integration tests
+        run: uv run python -m pytest -m integration
 
       # -----------------------------------------------------------------------
       # 5. Upload the publish state as a downloadable artifact.
