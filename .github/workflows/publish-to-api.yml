@@ -17,24 +17,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+
       - name: Build and start the docker-compose services
         env:
           CERT_PATH: ${{ github.workspace }}/dummy.cer
         run: docker compose up sysmldb sysml_v2_pilot_api --build --detach
-      
-      - uses: conda-incubator/setup-miniconda@v4
 
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-
-      - name: Install sysML v2 kernel
-        shell: bash -l {0}
-        env:
-          API_BASE: http://localhost:9000
-        run: conda info --envs && bash setup.sh
+      - name: Install sysmlv2 kernel
+        uses: ./.github/workflows/shared.yml
 
       - name: Install uv
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0

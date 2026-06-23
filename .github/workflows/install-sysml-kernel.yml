@@ -1,0 +1,37 @@
+
+name: Installk sysml v2 kernel
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        required: false
+        type: string
+        default: "3.11"
+
+jobs:
+  publish:
+    name: publish-to-api
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Build and start the docker-compose services
+        env:
+          CERT_PATH: ${{ github.workspace }}/dummy.cer
+        run: docker compose up sysmldb sysml_v2_pilot_api --build --detach
+      
+      - uses: conda-incubator/setup-miniconda@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install sysML v2 kernel
+        shell: bash -l {0}
+        env:
+          API_BASE: http://localhost:9000
+        run: conda info --envs && bash setup.sh
