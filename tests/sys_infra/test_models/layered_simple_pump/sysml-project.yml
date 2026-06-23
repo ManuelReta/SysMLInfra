@@ -1,5 +1,0 @@
-name: LayeredTestModel
-description: "Test model for integration"
-
-layers:
-  - layered_simple_pump.sysml
