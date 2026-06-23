@@ -9,6 +9,10 @@ runs:
     - name: Checkout
       uses: actions/checkout@v5
 
+    - name: dummy-certs
+      shell: bash
+      run: touch ${{ github.workspace }}/dummy.cer 
+
     - name: Build and start the docker-compose services
       env:
         CERT_PATH: ${{ github.workspace }}/dummy.cer

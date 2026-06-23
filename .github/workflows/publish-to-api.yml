@@ -30,9 +30,6 @@ jobs:
       - name: sync
         run: uv sync --all-groups
 
-      - name: dummy-certs
-        run: touch ${{ github.workspace }}/dummy.cer 
-
       - name: Publish model to SysML v2 API
         env:
           API_BASE: http://localhost:9000
@@ -42,6 +39,7 @@ jobs:
         env:
           API_BASE: http://localhost:9000
         run: uv run python -m sys_infra.entry verify --publish
+
       - name: Run integration tests
         run: uv run python -m pytest -m integration --no-docker --cov=. --cov-report=term
 

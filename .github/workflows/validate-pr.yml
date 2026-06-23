@@ -22,7 +22,7 @@ jobs:
       - name: Run unit tests
         env:
           REPO_ROOT: ${{ github.workspace }}
-        run: uv run pytest tests/ -x --tb=short -q -m "not integration"  --cov=. --cov-report=term
+        run: uv run pytest tests/ -x --tb=short -q -m "not integration" --no-docker --cov=. --cov-report=term
   
   linting:
     name: check-manifest
@@ -52,8 +52,6 @@ jobs:
   validate-sysml:
     name: validate-sysml
     runs-on: ubuntu-latest
-    
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
