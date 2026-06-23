@@ -24,7 +24,7 @@ jobs:
         run: docker compose up sysmldb sysml_v2_pilot_api --build --detach
 
       - name: Install sysmlv2 kernel
-        uses: ./.github/workflows/shared.yml
+        uses: ./.github/workflows/install-sysml-kernel.yml
 
       - name: Install uv
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0

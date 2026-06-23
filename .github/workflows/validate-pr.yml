@@ -58,7 +58,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install sysmlv2 kernel
-        uses: ./.github/workflows/shared.yml
+        uses: ./.github/workflows/install-sysml-kernel.yml
 
       - name: Run SysML v2 kernel validation
         shell: bash -el {0}
