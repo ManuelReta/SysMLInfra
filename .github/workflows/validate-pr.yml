@@ -59,11 +59,17 @@ jobs:
       - name: Setup SysML kernel and API
         uses: ./.github/actions/install-sysml-kernel
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+      - name: sync
+        run: uv sync --all-groups
+
+
       - name: Run SysML v2 kernel validation
         shell: bash -el {0}
         env: 
           REPO_ROOT: ${{ github.workspace }}
-        run: python -m scripts.ci_kernel_validate
+        run: uv run python -m scripts.ci_kernel_validate
       
       - name: Verify manifest and layer files (dry run)
         env: 
