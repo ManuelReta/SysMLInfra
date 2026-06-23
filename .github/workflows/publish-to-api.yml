@@ -19,11 +19,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
       
-      - name: Setup SysML kernel
+      - name: Setup SysML kernel and API
         uses: ./.github/actions/install-sysml-kernel
-
-      - name: Install sysmlv2 kernel and API
-        uses: ./.github/workflows/install-sysml-kernel.yml
 
       - name: Install uv
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
