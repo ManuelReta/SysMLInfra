@@ -73,7 +73,7 @@ def create_parser() -> argparse.ArgumentParser:
         "--published",
         action="store_true",
         help="Verify against the published model's kernel verdicts "
-             "(sysml_assertions table) instead of re-evaluating locally.",
+        "(sysml_assertions table) instead of re-evaluating locally.",
     )
 
     # =========================================================

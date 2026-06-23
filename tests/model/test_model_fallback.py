@@ -49,9 +49,9 @@ class TestPositiveCase:
 
     @pytest.mark.skip(
         reason="Analysis.sysml no longer uses bind statements; verdicts come from "
-               "the SysML kernel via %%eval and the sysml_assertions table. "
-               "Arithmetic equivalents are in tests/model/test_assertions_manifest.py "
-               ":: TestNominalArithmetic."
+        "the SysML kernel via %%eval and the sysml_assertions table. "
+        "Arithmetic equivalents are in tests/model/test_assertions_manifest.py "
+        ":: TestNominalArithmetic."
     )
     def test_all_key_requirements_satisfied(self, positive_results):
         by_name = {r["requirement"]: r for r in positive_results}
@@ -92,8 +92,8 @@ class TestNegativeCase:
 
     @pytest.mark.skip(
         reason="Analysis.sysml no longer uses bind statements; fallback eval returns None. "
-               "See tests/model/test_assertions_manifest.py :: TestNominalArithmetic "
-               ":: test_discharge_violated_when_pump_a_fails."
+        "See tests/model/test_assertions_manifest.py :: TestNominalArithmetic "
+        ":: test_discharge_violated_when_pump_a_fails."
     )
     def test_discharge_capacity_violated(self, negative_results):
         by_name = {r["requirement"]: r for r in negative_results}
@@ -102,8 +102,8 @@ class TestNegativeCase:
 
     @pytest.mark.skip(
         reason="Analysis.sysml no longer uses bind statements; fallback eval returns None. "
-               "See tests/model/test_assertions_manifest.py :: TestNominalArithmetic "
-               ":: test_effective_discharge_violated_when_pump_a_cavitates."
+        "See tests/model/test_assertions_manifest.py :: TestNominalArithmetic "
+        ":: test_effective_discharge_violated_when_pump_a_cavitates."
     )
     def test_effective_discharge_violated(self, negative_results):
         by_name = {r["requirement"]: r for r in negative_results}
@@ -112,8 +112,8 @@ class TestNegativeCase:
 
     @pytest.mark.skip(
         reason="Analysis.sysml no longer uses bind statements; fallback eval returns None. "
-               "See tests/model/test_assertions_manifest.py :: TestNominalArithmetic "
-               ":: test_water_level_independent_of_pump_flow."
+        "See tests/model/test_assertions_manifest.py :: TestNominalArithmetic "
+        ":: test_water_level_independent_of_pump_flow."
     )
     def test_water_level_still_satisfied(self, negative_results):
         """Water level check is independent of pump operation."""
@@ -122,8 +122,8 @@ class TestNegativeCase:
 
     @pytest.mark.skip(
         reason="Analysis.sysml no longer uses bind statements; fallback eval returns None. "
-               "See tests/model/test_assertions_manifest.py :: TestNominalArithmetic "
-               ":: test_redundancy_independent_of_pump_flow."
+        "See tests/model/test_assertions_manifest.py :: TestNominalArithmetic "
+        ":: test_redundancy_independent_of_pump_flow."
     )
     def test_redundancy_still_satisfied(self, negative_results):
         """isRedundant flag is structural — unaffected by flow rate override."""

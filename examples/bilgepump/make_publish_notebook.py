@@ -45,6 +45,7 @@ Run (via the SysMLInfra uv env — see mons_wp1/AGENTS.md)::
 
     cd /home/manret/SysMLInfra && uv run python examples/bilgepump/make_publish_notebook.py
 """
+
 from __future__ import annotations
 
 import pathlib
@@ -128,16 +129,15 @@ def build() -> nbformat.NotebookNode:
     nb.cells.append(nbformat.v4.new_markdown_cell("## 1 — Load layers into the kernel"))
     for filename, package in zip(layers, packages):
         source = (HERE / filename).read_text(encoding="utf-8")
-        nb.cells.append(nbformat.v4.new_markdown_cell(f"### `{filename}` -> `{package}`"))
+        nb.cells.append(
+            nbformat.v4.new_markdown_cell(f"### `{filename}` -> `{package}`")
+        )
         nb.cells.append(nbformat.v4.new_code_cell(source))
 
     # 2. Umbrella package that re-exports every layer, then a single publish.
     imports = "\n".join(f"    public import {pkg}::*;" for pkg in packages)
     umbrella = (
-        f"package {publish_root} {{\n"
-        f"    private import ScalarValues::*;\n"
-        f"{imports}\n"
-        f"}}"
+        f"package {publish_root} {{\n    private import ScalarValues::*;\n{imports}\n}}"
     )
     nb.cells.append(
         nbformat.v4.new_markdown_cell(
