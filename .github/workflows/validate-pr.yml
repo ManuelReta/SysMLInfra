@@ -52,13 +52,14 @@ jobs:
   validate-sysml:
     name: validate-sysml
     runs-on: ubuntu-latest
+    
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install sysmlv2 kernel
-        uses: ./.github/workflows/install-sysml-kernel.yml
+      - name: Setup SysML kernel and API
+        uses: ./.github/actions/install-sysml-kernel
 
       - name: Run SysML v2 kernel validation
         shell: bash -el {0}

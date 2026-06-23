@@ -1,0 +1,30 @@
+
+name: Install sysml v2 kernel and launch API
+description: Setup SysML kernel environment
+
+
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout
+      uses: actions/checkout@v5
+
+    - name: Build and start the docker-compose services
+      env:
+        CERT_PATH: ${{ github.workspace }}/dummy.cer
+      shell: bash
+      run: docker compose up sysmldb sysml_v2_pilot_api --build --detach
+    
+    - uses: conda-incubator/setup-miniconda@v4
+
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '21'
+
+    - name: Install sysML v2 kernel
+      shell: bash -l {0}
+      env:
+        API_BASE: http://localhost:9000
+      run: conda info --envs && bash setup.sh

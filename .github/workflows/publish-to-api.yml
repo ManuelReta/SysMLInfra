@@ -13,17 +13,16 @@ jobs:
   publish:
     name: publish-to-api
     runs-on: ubuntu-latest
+    
 
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+      
+      - name: Setup SysML kernel
+        uses: ./.github/actions/install-sysml-kernel
 
-      - name: Build and start the docker-compose services
-        env:
-          CERT_PATH: ${{ github.workspace }}/dummy.cer
-        run: docker compose up sysmldb sysml_v2_pilot_api --build --detach
-
-      - name: Install sysmlv2 kernel
+      - name: Install sysmlv2 kernel and API
         uses: ./.github/workflows/install-sysml-kernel.yml
 
       - name: Install uv
