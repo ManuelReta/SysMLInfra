@@ -50,7 +50,7 @@ jobs:
       - name: Run unit tests
         env:
           REPO_ROOT: ${{ github.workspace }}
-        run: uv run pytest tests/ -x --tb=short -q -m "not integration"
+        run: uv run pytest tests/ -x --tb=short -q -m "not integration"  --cov=. --cov-report=term
 
   # ---------------------------------------------------------------------------
   # Job 1: check-manifest — fast structural check, stdlib Python only.
