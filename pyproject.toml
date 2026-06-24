@@ -42,3 +42,11 @@ packages = ["sys_infra"]
 
 [project.scripts]
 commit = "sys_infra.commit:main"
+
+[tool.pytest.ini_options]
+addopts = "--no-docker -m 'not integration'"
+markers = [
+    "integration: requires a running SysML v2 API at localhost:9000",
+    "model: static model structure tests, no kernel or DB required",
+    "z3: Z3 SMT solver tests",
+]
