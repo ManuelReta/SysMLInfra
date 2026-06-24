@@ -12,6 +12,8 @@ LIB_DIR = REPO_ROOT / "lib"
 SCRIPTS_DIR = REPO_ROOT / "scripts"
 EXAMPLES_BILGEPUMP_DIR = REPO_ROOT / "examples" / "bilgepump"
 
+INTEGRATION_EXAMPLES_DIR = REPO_ROOT / "tests" / "sys_infra" / "test_models"
+
 
 class SysandPackageStructure:
     def __init__(self, project_dir: Path):

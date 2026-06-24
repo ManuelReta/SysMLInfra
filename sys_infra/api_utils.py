@@ -45,3 +45,15 @@ def delete_project_by_name(project_name: str):
         delete_project(project_id=project["@id"])
     else:
         print(f"Project with name '{project_name}' not found. Cannot delete.")
+
+
+def create_project(api_base: str, project_name: str, timeout: int = 1500) -> int | dict:
+    r = requests.post(
+        f"{api_base}/projects",
+        json={"@type": "Project", "name": project_name},
+        timeout=1500,
+    )
+    if r.status_code not in (200, 201):
+        return r.status_code
+
+    return r.json()

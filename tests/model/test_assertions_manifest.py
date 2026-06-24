@@ -15,6 +15,7 @@ expected verdicts when published to the local API server":
   4. Nominal arithmetic     — key Boolean expressions hold at Architecture values
                                 (replaces bind-statement fallback evaluation)
 """
+
 import re
 import importlib.util
 
@@ -24,6 +25,7 @@ from sys_infra.environment import EXAMPLES_BILGEPUMP_DIR
 
 pytestmark = pytest.mark.model
 
+
 # ---------------------------------------------------------------------------
 # Load bilgepump_assertions without putting examples/ on sys.path globally
 # ---------------------------------------------------------------------------
@@ -32,9 +34,17 @@ def _load_assertions() -> list[dict]:
         "bilgepump_assertions",
         EXAMPLES_BILGEPUMP_DIR / "bilgepump_assertions.py",
     )
+
+    if spec is None:
+        raise RuntimeError("Failed to create module spec")
+
+    if spec.loader is None:
+        raise RuntimeError("Module spec has no loader")
+
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    return mod.ASSERTIONS
+
+    return mod.ASSERTIONS  # type: ignore[attr-defined]
 
 
 ASSERTIONS = _load_assertions()
@@ -42,8 +52,8 @@ ASSERTIONS = _load_assertions()
 # Package name → .sysml file that declares it
 _PKG_FILE = {
     "BilgePump_Analysis": EXAMPLES_BILGEPUMP_DIR / "Analysis.sysml",
-    "BilgePump_FMEA":     EXAMPLES_BILGEPUMP_DIR / "FMEA.sysml",
-    "BilgePump_UQ":       EXAMPLES_BILGEPUMP_DIR / "UQ.sysml",
+    "BilgePump_FMEA": EXAMPLES_BILGEPUMP_DIR / "FMEA.sysml",
+    "BilgePump_UQ": EXAMPLES_BILGEPUMP_DIR / "UQ.sysml",
 }
 
 
@@ -60,13 +70,17 @@ class TestManifestIntegrity:
 
     def test_ids_are_unique(self):
         ids = [a["id"] for a in ASSERTIONS]
-        assert len(ids) == len(set(ids)), f"Duplicate IDs: {[i for i in ids if ids.count(i) > 1]}"
+        assert len(ids) == len(set(ids)), (
+            f"Duplicate IDs: {[i for i in ids if ids.count(i) > 1]}"
+        )
 
     def test_all_required_fields_present(self):
         required = {"id", "fqn", "layer", "requirement", "kind", "expected", "note"}
         for a in ASSERTIONS:
             missing = required - a.keys()
-            assert not missing, f"Assertion '{a.get('id')}' is missing fields: {missing}"
+            assert not missing, (
+                f"Assertion '{a.get('id')}' is missing fields: {missing}"
+            )
 
     def test_kind_is_valid(self):
         valid = {"positive", "negative", "uq"}
@@ -82,34 +96,57 @@ class TestManifestIntegrity:
     def test_positive_expected_true(self):
         for a in ASSERTIONS:
             if a["kind"] == "positive":
-                assert a["expected"] is True, f"'{a['id']}': positive assertion must have expected=True"
+                assert a["expected"] is True, (
+                    f"'{a['id']}': positive assertion must have expected=True"
+                )
 
     def test_negative_expected_false(self):
         for a in ASSERTIONS:
             if a["kind"] == "negative":
-                assert a["expected"] is False, f"'{a['id']}': negative assertion must have expected=False"
+                assert a["expected"] is False, (
+                    f"'{a['id']}': negative assertion must have expected=False"
+                )
 
     def test_minimum_counts(self):
         positive = sum(1 for a in ASSERTIONS if a["kind"] == "positive")
         negative = sum(1 for a in ASSERTIONS if a["kind"] == "negative")
-        uq       = sum(1 for a in ASSERTIONS if a["kind"] == "uq")
+        uq = sum(1 for a in ASSERTIONS if a["kind"] == "uq")
         assert positive >= 10, f"Expected >=10 positive assertions, got {positive}"
-        assert negative >= 5,  f"Expected >=5  negative assertions, got {negative}"
-        assert uq >= 10,       f"Expected >=10 UQ assertions, got {uq}"
+        assert negative >= 5, f"Expected >=5  negative assertions, got {negative}"
+        assert uq >= 10, f"Expected >=10 UQ assertions, got {uq}"
 
     def test_key_positive_assertions_present(self):
         """The six core BPS requirements must have positive assertions."""
-        positive_reqs = {a["requirement"] for a in ASSERTIONS if a["kind"] == "positive"}
-        for req_id in ("BPS-REQ-001", "BPS-REQ-002", "BPS-REQ-003",
-                       "BPS-REQ-004", "BPS-REQ-005", "BPS-REQ-006"):
-            assert req_id in positive_reqs, f"No positive assertion for requirement '{req_id}'"
+        positive_reqs = {
+            a["requirement"] for a in ASSERTIONS if a["kind"] == "positive"
+        }
+        for req_id in (
+            "BPS-REQ-001",
+            "BPS-REQ-002",
+            "BPS-REQ-003",
+            "BPS-REQ-004",
+            "BPS-REQ-005",
+            "BPS-REQ-006",
+        ):
+            assert req_id in positive_reqs, (
+                f"No positive assertion for requirement '{req_id}'"
+            )
 
     def test_key_negative_assertions_present(self):
         """Core failure modes must have negative (FMEA) assertions."""
-        negative_reqs = {a["requirement"] for a in ASSERTIONS if a["kind"] == "negative"}
-        for req_id in ("BPS-REQ-002", "BPS-REQ-003", "BPS-REQ-004",
-                       "BPS-REQ-005", "BPS-REQ-006"):
-            assert req_id in negative_reqs, f"No negative assertion for requirement '{req_id}'"
+        negative_reqs = {
+            a["requirement"] for a in ASSERTIONS if a["kind"] == "negative"
+        }
+        for req_id in (
+            "BPS-REQ-002",
+            "BPS-REQ-003",
+            "BPS-REQ-004",
+            "BPS-REQ-005",
+            "BPS-REQ-006",
+        ):
+            assert req_id in negative_reqs, (
+                f"No negative assertion for requirement '{req_id}'"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -124,7 +161,9 @@ class TestSysMLAttributePresence:
         """Each referenced package is declared in the correct .sysml file."""
         for pkg, path in _PKG_FILE.items():
             text = path.read_text()
-            assert f"package {pkg}" in text, f"Package '{pkg}' not declared in {path.name}"
+            assert f"package {pkg}" in text, (
+                f"Package '{pkg}' not declared in {path.name}"
+            )
 
     @pytest.mark.parametrize("assertion", ASSERTIONS, ids=[a["id"] for a in ASSERTIONS])
     def test_attribute_exists_in_sysml(self, assertion):
@@ -153,26 +192,42 @@ class TestImportChain:
 
     def test_analysis_imports_all_layers(self):
         text = _text("Analysis.sysml")
-        for pkg in ("BilgePump_Library", "BilgePump_Architecture", "BilgePump_Requirements"):
+        for pkg in (
+            "BilgePump_Library",
+            "BilgePump_Architecture",
+            "BilgePump_Requirements",
+        ):
             assert pkg in text, f"Analysis.sysml missing import of '{pkg}'"
 
     def test_fmea_imports_library(self):
         text = _text("FMEA.sysml")
-        assert "BilgePump_Library" in text, "FMEA.sysml missing import of 'BilgePump_Library'"
+        assert "BilgePump_Library" in text, (
+            "FMEA.sysml missing import of 'BilgePump_Library'"
+        )
 
     def test_architecture_imports_library(self):
         text = _text("Architecture.sysml")
-        assert "BilgePump_Library" in text, "Architecture.sysml missing import of 'BilgePump_Library'"
+        assert "BilgePump_Library" in text, (
+            "Architecture.sysml missing import of 'BilgePump_Library'"
+        )
 
     def test_requirements_imports_library(self):
         text = _text("Requirements.sysml")
-        assert "BilgePump_Library" in text, "Requirements.sysml missing import of 'BilgePump_Library'"
+        assert "BilgePump_Library" in text, (
+            "Requirements.sysml missing import of 'BilgePump_Library'"
+        )
 
     def test_no_circular_imports(self):
         """Library must not import Architecture/Requirements/Analysis."""
         lib_text = _text("Library.sysml")
-        for forbidden in ("BilgePump_Architecture", "BilgePump_Requirements", "BilgePump_Analysis"):
-            assert forbidden not in lib_text, f"Library.sysml must not import '{forbidden}' (circular)"
+        for forbidden in (
+            "BilgePump_Architecture",
+            "BilgePump_Requirements",
+            "BilgePump_Analysis",
+        ):
+            assert forbidden not in lib_text, (
+                f"Library.sysml must not import '{forbidden}' (circular)"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -180,20 +235,20 @@ class TestImportChain:
 # ---------------------------------------------------------------------------
 # Ground truth: nominal attribute values from Architecture.sysml
 _NOM = dict(
-    waterLevel=0.15,        # sensor.waterLevel (nominal bilge sounding, m)
-    flowRateA=0.025,        # pumpA.flowRate (rated, m³/s)
-    flowRateB=0.025,        # pumpB.flowRate (rated, m³/s)
-    efficiency=0.82,        # pumpA/B.efficiency (hydraulic eta)
-    pipeLossFactor=0.05,    # discharge.pipeLossFactor (Darcy-Weisbach lambda)
-    designInflow=0.030,     # bpVerification.designInflow (m³/s)
+    waterLevel=0.15,  # sensor.waterLevel (nominal bilge sounding, m)
+    flowRateA=0.025,  # pumpA.flowRate (rated, m³/s)
+    flowRateB=0.025,  # pumpB.flowRate (rated, m³/s)
+    efficiency=0.82,  # pumpA/B.efficiency (hydraulic eta)
+    pipeLossFactor=0.05,  # discharge.pipeLossFactor (Darcy-Weisbach lambda)
+    designInflow=0.030,  # bpVerification.designInflow (m³/s)
     activationDelay_s=0.5,  # alarm.activationDelay_s (IEC 60945, s)
-    isRedundant=True,       # pumpB.isRedundant
-    responseTime_s=1.0,     # controller.responseTime_s (SIM-CTRL-001 §3.1, s)
-    failoverTime_s=0.8,     # controller.failoverTime_s (SIM-CTRL-001 §3.2, s)
-    accuracy_m=0.03,        # sensor.accuracy_m (IEC 60770-1 ±3 cm class)
-    triggerLevel_m=0.25,    # sensor.triggerLevel_m (activation level, m)
-    criticalLevel_m=0.5,    # BilgePumpSystem.criticalLevel_m (SOLAS breach, m)
-    inflowRate_m3s=0.020,   # BilgePumpSystem.inflowRate_m3s (design ingress, m³/s)
+    isRedundant=True,  # pumpB.isRedundant
+    responseTime_s=1.0,  # controller.responseTime_s (SIM-CTRL-001 §3.1, s)
+    failoverTime_s=0.8,  # controller.failoverTime_s (SIM-CTRL-001 §3.2, s)
+    accuracy_m=0.03,  # sensor.accuracy_m (IEC 60770-1 ±3 cm class)
+    triggerLevel_m=0.25,  # sensor.triggerLevel_m (activation level, m)
+    criticalLevel_m=0.5,  # BilgePumpSystem.criticalLevel_m (SOLAS breach, m)
+    inflowRate_m3s=0.020,  # BilgePumpSystem.inflowRate_m3s (design ingress, m³/s)
 )
 
 
@@ -219,7 +274,11 @@ class TestNominalArithmetic:
         assert _NOM["flowRateA"] + _NOM["flowRateB"] >= _NOM["designInflow"]
 
     def test_net_flow_physics_satisfied(self):
-        net = (_NOM["flowRateA"] + _NOM["flowRateB"]) * _NOM["efficiency"] * (1 - _NOM["pipeLossFactor"])
+        net = (
+            (_NOM["flowRateA"] + _NOM["flowRateB"])
+            * _NOM["efficiency"]
+            * (1 - _NOM["pipeLossFactor"])
+        )
         assert net >= _NOM["designInflow"]  # physicsCheck in bpVerification
 
     # ── BPS-REQ-005 ─────────────────────────────────────────────────────────
@@ -245,7 +304,9 @@ class TestNominalArithmetic:
 
     def test_effective_discharge_violated_when_pump_a_cavitates(self):
         """Pump A cavitation → net effective flow < inflow → VIOLATED (FM-PA-002-eff)."""
-        net = (0.0 * _NOM["efficiency"] + _NOM["flowRateB"] * _NOM["efficiency"]) * (1 - _NOM["pipeLossFactor"])
+        net = (0.0 * _NOM["efficiency"] + _NOM["flowRateB"] * _NOM["efficiency"]) * (
+            1 - _NOM["pipeLossFactor"]
+        )
         assert not (net >= _NOM["designInflow"])
 
     def test_water_level_independent_of_pump_flow(self):

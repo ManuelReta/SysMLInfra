@@ -32,7 +32,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONDA_BASE="${CONDA_BASE:-/home/manret/miniconda3}"
+CONDA_BASE="${CONDA_BASE:-$(conda info --base)}"
 SYSML_ENV="sysmlv2"
 SYSML_VERSION="0.58.0"
 
@@ -111,8 +111,8 @@ else
     exit 1
 fi
 
-# Post-install validation: verify kernel is registered
-if jupyter kernelspec list 2>/dev/null | grep -iq sysml; then
+# Post-install validation: verify kernel is registered.
+if "$CONDA_BASE/envs/$SYSML_ENV/bin/jupyter" kernelspec list | grep -iq sysml; then
     echo "      ✓ SysML v2 kernel registered and ready."
 else
     echo ""

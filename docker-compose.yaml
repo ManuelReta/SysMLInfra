@@ -1,0 +1,30 @@
+services:
+  sysmldb:
+    image: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=sysml2
+      - POSTGRES_PASSWORD=mysecretpassword
+      - POSTGRES_USER=postgres
+
+  pgadmin:
+    image: dpage/pgadmin4
+    ports:
+      - "8090:80"
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@example.com
+      - PGADMIN_DEFAULT_PASSWORD=YourSecurePassword
+
+  sysml_v2_pilot_api:
+    environment:
+      - PLAY_HTTP_SECRET_KEY=change-this-to-a-long-random-string
+    build:
+      context: .
+      dockerfile: Dockerfile_pilot_api
+    command: >
+      bash -c "
+      target/universal/stage/bin/sysml-v2-api-services
+      "
+    ports:
+      - "9000:9000"

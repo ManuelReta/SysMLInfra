@@ -41,6 +41,7 @@ import sys
 from pathlib import Path
 from typing import Any
 from scripts.utils import dry_runner
+from sys_infra.api_utils import create_project
 from sys_infra.commit import get_host
 from sys_infra.environment import LIB_DIR, REPO_ROOT, SysandPackageStructure
 from sys_infra.utils import _USE_COLOR, bold, cyan, dim, green, red, yellow
@@ -275,10 +276,14 @@ def _run_published(negative: bool, want_all: bool) -> list[dict]:
             cur.execute("SELECT to_regclass('public.sysml_assertions')")
             if cur.fetchone()[0] is None:
                 print(red("ERROR: sysml_assertions table not found."))
-                print("  Build it: mons_wp1/publish_bilgepump.sh  (publish + materialize)")
+                print(
+                    "  Build it: mons_wp1/publish_bilgepump.sh  (publish + materialize)"
+                )
                 sys.exit(2)
-            sql = ("SELECT assertion, requirement, kind, expected, result_bool, "
-                   "status, note FROM sysml_assertions")
+            sql = (
+                "SELECT assertion, requirement, kind, expected, result_bool, "
+                "status, note FROM sysml_assertions"
+            )
             if want_all:
                 params: tuple = ()
             elif negative:
@@ -311,6 +316,7 @@ def _run_published(negative: bool, want_all: bool) -> list[dict]:
 
 
 # ── Kernel %eval helper ───────────────────────────────────────────────────────
+
 
 def _build_kernel_eval_cells(
     layer_paths: list[str],
@@ -756,6 +762,8 @@ def _publish(layer_paths: list[str], project_name: str, project_dir: Path) -> No
         return
 
     api_base = os.environ.get("SYSML_API_BASE")
+    if api_base is None:
+        raise ValueError("Set SYSML_API_BASE in .env file")
     print(f"\n  {bold('Publishing to SST API:')}  {api_base}")
 
     try:
@@ -771,16 +779,15 @@ def _publish(layer_paths: list[str], project_name: str, project_dir: Path) -> No
         print(yellow(f"  WARNING: Cannot reach {api_base} ({exc}) — skipping publish"))
         return
 
-    # Create project
-    r = requests.post(
-        f"{api_base}/projects",
-        json={"@type": "Project", "name": project_name},
-        timeout=1500,
-    )
-    if r.status_code not in (200, 201):
+    response = create_project(api_base=api_base, project_name=project_name)
+    if isinstance(response, int):
         print(red(f"  ERROR: Failed to create project (HTTP {r.status_code})"))
-        return
-    project_id = r.json().get("@id") or r.json().get("id")
+        raise ConnectionAbortedError(
+            f"  ERROR: Failed to create project (HTTP {r.status_code})"
+        )
+
+    project_id = response.get("@id") or r.json().get("id")
+
     print(f"  Project ID : {project_id}")
 
     commit_ids: dict[str, str] = {}
@@ -1106,23 +1113,31 @@ def run_verify(
         dry_runner(project_name, all_layers, project_dir, validation_layers)
 
     # ── Option B: verify against the published model (sysml_assertions) ────────
+    results: list[dict] = []
     if published:
         mode_label = (
-            "all assertions" if all
+            "all assertions"
+            if all
             else ("negative (fault injections)" if negative else "positive functional")
         )
         _print_header(
-            project_name, mode_label,
+            project_name,
+            mode_label,
             "Published model — kernel %eval verdicts (sysml_assertions table)",
         )
         results = _run_published(negative, all)
         if not results:
-            print(yellow("\n  No matching assertions in sysml_assertions for this mode."))
+            print(
+                yellow("\n  No matching assertions in sysml_assertions for this mode.")
+            )
             print(dim("  Publish first: mons_wp1/publish_bilgepump.sh"))
             sys.exit(2)
         all_pass, violated = _print_results(results, show_expr=verbose)
-        _save_results(results, "negative" if negative else "positive",
-                      "published:sysml_assertions")
+        _save_results(
+            results,
+            "negative" if negative else "positive",
+            "published:sysml_assertions",
+        )
         sys.exit(0 if all_pass else 1)
 
     # ── Live sensor mode ───────────────────────────────────────────────────────
@@ -1219,7 +1234,7 @@ def run_verify(
     )
     _print_header(project_name, mode_label, engine_label)
 
-    results: list[dict] = []
+    results = []
 
     # ── Kernel path ────────────────────────────────────────────────────────────
     if use_kernel and kernel_name:

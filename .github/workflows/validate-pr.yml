@@ -1,39 +1,11 @@
 name: Validate SysML Model
 
-# =============================================================================
-# validate-pr.yml — PR gate for SysML v2 model changes
-#
-# Triggers on every pull request targeting 'main' that touches a .sysml file
-# or the project manifest.  Blocks the merge if the SysML v2 kernel reports
-# any syntax error, unresolved import, type mismatch, or failed requirement
-# assertion.
-#
-# The SysML v2 API server (sysml2.intercax.com) is NEVER contacted during
-# PR validation — the kernel runs entirely locally on the CI runner.  This
-# means the API stays clean: it only ever receives validated models after
-# a successful merge to main (see publish-to-api.yml).
-#
-# Toolchain mirrors setup.sh exactly:
-#   - Java 21   (required by the SysML v2 kernel JAR)
-#   - Miniconda (manages the isolated Python + kernel environment)
-#   - jupyter-sysml-kernel=0.58.0  (pinned to match local setup.sh)
-#   - nbclient + nbformat  (drive the kernel headlessly)
-#
-# For a new project: update sysml-project.yml only.  This workflow is generic.
-# =============================================================================
-
 on:
   pull_request:
     branches:
       - main
 
 jobs:
-  # ---------------------------------------------------------------------------
-  # Job 0: unit-tests — fast Python unit tests, no kernel or JVM required.
-  #
-  # Runs in ~15 seconds.  Tests verify.py helpers, fault_tracer, formal_analysis
-  # and the Python fallback evaluator against the bilge pump model.
-  # ---------------------------------------------------------------------------
   unit-tests:
     name: unit-tests
     runs-on: ubuntu-latest
@@ -50,21 +22,9 @@ jobs:
       - name: Run unit tests
         env:
           REPO_ROOT: ${{ github.workspace }}
-        run: uv run pytest tests/ -x --tb=short -q
-
-  # ---------------------------------------------------------------------------
-  # Job 1: check-manifest — fast structural check, stdlib Python only.
-  #
-  # Runs in ~25 seconds. Verifies:
-  #   - sysml-project.yml is readable and has at least one layer
-  #   - Every listed .sysml file exists in the repository
-  #   - ci_kernel_validate.py --dry-run exits 0
-  #
-  # This job gives immediate feedback on the PR without waiting for conda
-  # to solve the environment or the JVM to start.  It is a prerequisite for
-  # validate-sysml so failures here skip the slow job.
-  # ---------------------------------------------------------------------------
-  check-manifest:
+        run: uv run pytest tests/ -x --tb=short -q -m "not integration" --no-docker --cov=. --cov-report=term
+  
+  linting:
     name: check-manifest
     runs-on: ubuntu-latest
     needs: unit-tests
@@ -89,101 +49,29 @@ jobs:
       - name: Ruff lint (check)
         run: uvx ruff check --output-format=github --exclude "**/*.ipynb"
 
-      - name: Verify manifest and layer files (dry run)
-        env: 
-          REPO_ROOT: ${{ github.workspace }}
-        run: uv run python -m sys_infra.entry validate --dry-run
-
-  # ---------------------------------------------------------------------------
-  # Job 2: validate-sysml — full semantic validation via SysML v2 kernel.
-  #
-  # Only runs if check-manifest passes. Installs Java 21 + conda +
-  # jupyter-sysml-kernel, then executes all model layers in order.
-  # Kernel checks: syntax, imports, types, port compatibility, assert results.
-  # ---------------------------------------------------------------------------
   validate-sysml:
     name: validate-sysml
     runs-on: ubuntu-latest
-    needs: check-manifest
-
     steps:
-      # -----------------------------------------------------------------------
-      # 1. Check out the PR branch
-      # -----------------------------------------------------------------------
       - name: Checkout
         uses: actions/checkout@v4
 
-      # -----------------------------------------------------------------------
-      # 2. Java 21 — required by the SysML v2 kernel JAR (same requirement
-      #    as setup.sh which checks for java -version >= 21).
-      # -----------------------------------------------------------------------
-      - name: Set up Java 21
-        uses: actions/setup-java@v4
-        with:
-          java-version: "21"
-          distribution: "temurin"
+      - name: Setup SysML kernel and API
+        uses: ./.github/actions/install-sysml-kernel
 
-      # -----------------------------------------------------------------------
-      # 3. Miniconda — creates an isolated, reproducible Python environment.
-      #    Using conda (not a plain venv) because jupyter-sysml-kernel is
-      #    distributed on conda-forge and its post-install hook registers the
-      #    Jupyter kernel spec automatically inside the conda env.
-      #
-      #    auto-activate-base: true  — all subsequent steps run inside base env
-      #    auto-update-conda: false  — pin conda version for reproducibility
-      # -----------------------------------------------------------------------
-      - name: Set up Miniconda
-        uses: conda-incubator/setup-miniconda@v3
-        with:
-          python-version: "3.11"
-          auto-activate: true
-          activate-environment: base
-          auto-update-conda: false
-          miniforge-variant: Miniforge3
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+      - name: sync
+        run: uv sync --all-groups
 
-      # -----------------------------------------------------------------------
-      # 4. Install SysML v2 kernel + CI execution dependencies in one step.
-      #
-      #    shell: bash -el {0}  is required for conda activation to take effect
-      #    in subsequent run steps when using setup-miniconda.
-      #
-      #    mamba (from Mambaforge) is used instead of conda for faster solves.
-      #    If mamba is unavailable, replace 'mamba' with 'conda'.
-      # -----------------------------------------------------------------------
-      - name: Install SysML v2 kernel and CI dependencies
-        shell: bash -el {0}
-        run: |
-          mamba install -y -c conda-forge \
-            "jupyter-sysml-kernel=0.58.0" \
-            "nbclient>=0.10" \
-            "nbformat>=5.9" \
-            "python-dotenv>=1.2.2"
 
-      # -----------------------------------------------------------------------
-      # 5. List registered Jupyter kernels so the exact name is visible in
-      #    the CI log. The SysML v2 kernel may register as 'sysml2', 'sysml',
-      #    or another name depending on the package version.
-      # -----------------------------------------------------------------------
-      - name: List installed Jupyter kernels
-        shell: bash -el {0}
-        run: jupyter kernelspec list
-
-      # -----------------------------------------------------------------------
-      # 6. Validate: run ci_kernel_validate.py against the PR branch model.
-      #
-      #    The script reads sysml-project.yml to determine the layer order,
-      #    builds an in-memory notebook, executes all cells against the sysml2
-      #    kernel, and exits 1 on any error output.
-      #
-      #    What the kernel checks natively (no custom parser):
-      #      - Syntax validity of every .sysml file
-      #      - Unresolved package imports (e.g. wrong flat-package name)
-      #      - Unresolved element references (e.g. Architecture before Library)
-      #      - Port type compatibility (conjugate port direction rules)
-      #      - assert requirement results in Analysis.sysml (SATISFIED/VIOLATED)
-      # -----------------------------------------------------------------------
       - name: Run SysML v2 kernel validation
         shell: bash -el {0}
         env: 
           REPO_ROOT: ${{ github.workspace }}
-        run: python -m scripts.ci_kernel_validate
+        run: uv run python -m scripts.ci_kernel_validate
+      
+      - name: Verify manifest and layer files (dry run)
+        env: 
+          REPO_ROOT: ${{ github.workspace }}
+        run: uv run python -m sys_infra.entry validate --dry-run

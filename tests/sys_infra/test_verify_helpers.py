@@ -15,10 +15,11 @@ import sys_infra.verify as verify
 # ── _eval_requirement ─────────────────────────────────────────────────────────
 
 
+@pytest.mark.integration
 class TestEvalRequirement:
     """Tests for verify._eval_requirement()."""
 
-    def test_simple_le_satisfied(self) -> None:
+    def test_simple_le_satisfied(self, docker_compose) -> None:
         bind = {"sys.sensor.waterLevel": 0.15}
         bare = {"waterLevel": 0.15}
         result = verify._eval_requirement(
