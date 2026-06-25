@@ -1166,7 +1166,7 @@ class Pipeline:
         if self.kernel_name is None:
             raise ValueError("Kernel not found")
 
-    def __call__(self, publish: bool = False) -> None:
+    def __call__(self, publish: bool = False) -> list[dict[Any, Any]]:
         expressions = self._construct_evaluateble_expressions()
         self.nb = self._get_kernel()
         self.nb = run_kernel_layers(
@@ -1177,6 +1177,7 @@ class Pipeline:
         if publish:
             self._publish_to_api()
         self._store_results(results=results)
+        return results
 
     def _get_kernel(self):
         import nbformat
