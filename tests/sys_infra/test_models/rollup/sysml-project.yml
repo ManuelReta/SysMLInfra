@@ -1,0 +1,5 @@
+name: RollupTestModel
+description: "Test model for integration"
+
+layers:
+  - rollup.sysml

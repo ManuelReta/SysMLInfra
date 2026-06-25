@@ -1,0 +1,5 @@
+name: SimpleTestModel
+description: "Test model for integration"
+
+layers:
+  - simple_pump.sysml

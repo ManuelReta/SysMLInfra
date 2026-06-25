@@ -42,42 +42,23 @@ from pathlib import Path
 from typing import Any
 from scripts.utils import dry_runner
 from sys_infra.api_utils import create_project
-from sys_infra.commit import get_host
-from sys_infra.environment import LIB_DIR, REPO_ROOT, SysandPackageStructure
-from sys_infra.utils import _USE_COLOR, bold, cyan, dim, green, red, yellow
-
-
-# ── Manifest reader (same logic as ci_kernel_validate.py) ────────────────────
-
-
-def _read_manifest(path: str) -> tuple[str, list[str], list[str] | None]:
-    name = "SysMLProject"
-    layers: list[str] = []
-    validation_layers: list[str] | None = None
-    current_list: list[str] | None = None
-    with open(path) as fh:
-        for raw in fh:
-            s = raw.strip()
-            if not s or s.startswith("#"):
-                continue
-            if s.startswith("name:"):
-                name = s.split(":", 1)[1].strip().strip("\"'")
-                current_list = None
-            elif s == "layers:":
-                current_list = layers
-            elif s == "validation_layers:":
-                validation_layers = []
-                current_list = validation_layers
-            elif current_list is not None and s.startswith("- "):
-                current_list.append(s[2:].strip())
-            elif (
-                current_list is not None
-                and s
-                and not s.startswith("-")
-                and not s.startswith("#")
-            ):
-                current_list = None
-    return name, layers, validation_layers
+from sys_infra.environment import LIB_DIR, REPO_ROOT
+from sys_infra.utils import (
+    _USE_COLOR,
+    _read,
+    bold,
+    cyan,
+    dim,
+    generate_eval_commands,
+    green,
+    parse_sysml,
+    read_layers,
+    red,
+    run_kernel_publish,
+    yellow,
+    kernel_evaluate,
+    run_kernel_layers,
+)
 
 
 # ── Comment stripping + constraint evaluation (fallback path) ────────────────
@@ -85,11 +66,6 @@ def _strip_comments(text: str) -> str:
     text = re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)
     text = re.sub(r"//[^\n]*", "", text)
     return text
-
-
-def _read(path: str) -> str:
-    with open(path, encoding="utf-8") as fh:
-        return fh.read()
 
 
 def _build_bind_values(analysis_text: str, negative: bool) -> tuple[dict, dict]:
@@ -822,112 +798,6 @@ def _publish(layer_paths: list[str], project_name: str, project_dir: Path) -> No
 # ── Dry-run ───────────────────────────────────────────────────────────────────
 
 
-def _run_kernel_publish(
-    layer_paths: list[str], kernel_name: str, project_dir: Path, project_name: str
-) -> tuple[bool, list[Any]]:
-    """
-    Publishes the layers bundled as one "superpackage". This is how the same project can be used.
-    """
-    try:
-        import nbformat
-        from nbclient import NotebookClient
-        from nbclient.exceptions import CellExecutionError
-    except ImportError as exc:
-        print(red(f"ERROR: {exc}"))
-        print("  Install CI dependencies:  pip install nbclient nbformat")
-        sys.exit(2)
-
-    nb = nbformat.v4.new_notebook()
-    nb.metadata["kernelspec"] = {
-        "display_name": "SysML v2",
-        "language": "sysml",
-        "name": kernel_name,
-    }
-
-    # ── Model layer cells ─────────────────────────────────────────────────────
-    n_model_cells = 3
-    all_packages = []
-    package_name = f"{project_name}Super"
-    super_package_prefix = f"package {package_name} {{\n\n"
-    super_package_suffix = "\n }"
-    super_text = super_package_prefix
-
-    for layer_file in layer_paths:
-        abs_path = os.path.join(project_dir, layer_file)
-
-        text = _read(abs_path)
-        super_text += text
-        pattern = r"package\s+'?([\w:]+)'?\s*\{"
-        packages = re.findall(pattern, text)
-        all_packages += packages
-    super_text += super_package_suffix
-
-    nb.cells.append(nbformat.v4.new_code_cell(super_text))
-
-    repo_cell = nbformat.v4.new_code_cell(f"%repo {get_host()}")
-    publish_cell = nbformat.v4.new_code_cell(
-        f"%publish {package_name} --project='{package_name}_project'"
-    )
-    publish_cell.metadata["tags"] = ["raises-exception"]
-    nb.cells.append(repo_cell)
-    nb.cells.append(publish_cell)
-
-    client = NotebookClient(
-        nb,
-        timeout=300,
-        kernel_name=kernel_name,
-        resources={"metadata": {"path": project_dir}},
-    )
-
-    # The SysML kernel JAR writes ~50 lines of "Reading *.kerml" messages plus
-    # log4j and JUL INFO logs via the inherited stdout/stderr file descriptors.
-    # Redirect fd 1 and fd 2 at the OS level before execute() starts the subprocess
-    # so those messages are silently discarded.  We flush first to avoid losing
-    # any buffered Python output, then restore after execute() returns.
-    sys.stdout.flush()
-    sys.stderr.flush()
-    _saved_out = os.dup(1)
-    _saved_err = os.dup(2)
-    _devnull = os.open(os.devnull, os.O_WRONLY)
-    os.dup2(_devnull, 1)
-    os.dup2(_devnull, 2)
-    os.close(_devnull)
-
-    _exec_error: Exception | None = None
-    try:
-        client.execute()
-    except CellExecutionError:
-        pass  # We inspect outputs below regardless
-    except Exception as exc:
-        _exec_error = exc
-    finally:
-        os.dup2(_saved_out, 1)
-        os.dup2(_saved_err, 2)
-        os.close(_saved_out)
-        os.close(_saved_err)
-
-    if _exec_error is not None:
-        print(red(f"\nKernel execution error: {_exec_error}"))
-        return False, []
-
-    # ── Parse model layer results ─────────────────────────────────────────────
-    cell_results: list[dict] = []
-    all_ok = True
-    for i in range(n_model_cells):
-        cell = nb.cells[i]
-        errors = [o for o in cell.get("outputs", []) if o.get("output_type") == "error"]
-        cell_results.append(
-            {
-                "ok": not errors,
-                "errors": errors,
-            }
-        )
-        if errors:
-            all_ok = False
-
-    return all_ok, cell_results
-
-
 """ def _dry_run(
     name: str, layers: list, project_dir: str, validation_layers: list | None
 ) -> None:
@@ -1075,38 +945,7 @@ def run_verify(
 ) -> None:
     print("Using project: ", project_dir)
 
-    if not project_dir.exists():
-        print(red(f"ERROR: Project directory not found: {project_dir}"))
-        sys.exit(2)
-
-    MANIFEST = project_dir / "sysml-project.yml"
-    validation_layers: list[str] | None
-    # ── Load manifest or fallback ───────────────────────────────────────────────
-    if not MANIFEST.exists():
-        sysandpackage = SysandPackageStructure(project_dir)
-        print(f"WARNING: sysml-project.yml not found at {MANIFEST}")
-        print("Falling back to reading .sysml files in project_dir")
-
-        # Collect all .sysml files
-        sysml_files = sorted(sysandpackage.project_dir.glob("*.sysml"))
-
-        if not sysml_files:
-            print("ERROR: No .sysml files found in project directory")
-            sys.exit(2)
-
-        # Use filenames (or full paths depending on your needs)
-        all_layers = [str(f) for f in sysml_files]
-        validation_layers = list(all_layers)
-
-        # Derive a project name (optional)
-        project_name = sysandpackage.project_name
-
-    else:
-        project_name, all_layers, validation_layers = _read_manifest(str(MANIFEST))
-
-    if not all_layers:
-        print(red("ERROR: sysml-project.yml contains no layers entries."))
-        sys.exit(2)
+    project_name, all_layers, validation_layers, MANIFEST = read_layers(project_dir)
 
     # Dry-run: always uses full layers list
     if dry_run:
@@ -1311,11 +1150,89 @@ def run_verify(
 
     # ── Optional publish ───────────────────────────────────────────────────────
     if publish and kernel_name is not None:
-        _run_kernel_publish(all_layers, kernel_name, project_dir, project_name)
+        run_kernel_publish(all_layers, kernel_name, project_dir, project_name)
         # _publish(all_layers, project_name, project_dir)
 
     sys.exit(0 if all_pass else 1)
 
 
+class Pipeline:
+    def __init__(self, project_dir: Path) -> None:
+        self.project_dir = project_dir
+        self.project_name, self.all_layers, self.validation_layers, self.MANIFEST = (
+            read_layers(project_dir=self.project_dir)
+        )
+        self.kernel_name = _discover_sysml_kernel()
+        if self.kernel_name is None:
+            raise ValueError("Kernel not found")
+
+    def __call__(self, publish: bool = False) -> None:
+        expressions = self._construct_evaluateble_expressions()
+        self.nb = self._get_kernel()
+        self.nb = run_kernel_layers(
+            layer_paths=[self.project_dir / layer for layer in self.all_layers],
+            nb=self.nb,
+        )
+        results = self._evaluate_expressions(expressions=expressions, nb=self.nb)
+        if publish:
+            self._publish_to_api()
+        self._store_results(results=results)
+
+    def _get_kernel(self):
+        import nbformat
+
+        nb = nbformat.v4.new_notebook()
+        nb.metadata["kernelspec"] = {
+            "display_name": "SysML v2",
+            "language": "sysml",
+            "name": self.kernel_name,
+        }
+        return nb
+
+    def _construct_evaluateble_expressions(self) -> list[str]:
+        all_commands: list[str] = []
+
+        for layer in self.all_layers:
+            with open(self.project_dir / layer, "r") as f:
+                text = f.read()
+
+            package, req_usages, parts = parse_sysml(text)
+            commands = generate_eval_commands(package, req_usages, parts)
+            all_commands += commands
+
+        print("Generated %eval commands:\n")
+        for c in all_commands:
+            print(c)
+        return all_commands
+
+    def _evaluate_expressions(self, expressions, nb) -> list[dict[Any, Any]]:
+        if self.kernel_name is None:
+            raise ValueError("Kernel not found")
+        results = kernel_evaluate(
+            expressions=expressions,
+            kernel_name=self.kernel_name,
+            project_dir=self.project_dir,
+            nb=nb,
+        )
+        return results
+
+    def _publish_to_api(self):
+        run_kernel_publish(
+            self.all_layers, self.kernel_name, self.project_dir, self.project_name
+        )
+
+    def _store_results(self, results):
+        for result in results:
+            requirement = result["in"]
+            text = result["out"][0]["data"]["text/plain"]
+            match_found = bool(re.search(r"\btrue\b", text))
+            print(f"Requirement {requirement}: {match_found}")
+
+
 if __name__ == "__main__":
-    ...
+    p = Pipeline(
+        Path(
+            "/mnt/c/Users/SINKAA/Desktop/code/mons_wp1/SysMLInfra/tests/sys_infra/test_models/layered_simple_pump"
+        )
+    )
+    p()
