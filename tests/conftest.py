@@ -51,13 +51,16 @@ def docker_compose(request):
         yield
         return
 
-    compose_file = "docker-compose.yaml" if LOCAL_RUN else "docker-compose-local.yaml"
+    # Base stack is always required; behind the DNV proxy (default, no LOCAL set)
+    # the zscaler overlay is layered on top. Tests stay ephemeral — the persist
+    # overlay (named volume) is intentionally NOT included here.
+    compose_files = ["-f", "docker-compose.yaml"]
+    if not LOCAL_RUN:
+        compose_files += ["-f", "docker-compose-local.yaml"]
 
-    running = ["docker", "compose", "-f", compose_file, "up", "-d"]
-
-    subprocess.run(running, check=True)
+    subprocess.run(["docker", "compose", *compose_files, "up", "-d"], check=True)
 
     wait_for_api("http://localhost:9000")
 
     yield
-    subprocess.run(["docker", "compose", "-f", compose_file, "down"], check=True)
+    subprocess.run(["docker", "compose", *compose_files, "down"], check=True)

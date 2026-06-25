@@ -41,8 +41,12 @@ import sys
 from pathlib import Path
 from typing import Any
 from scripts.utils import dry_runner
-from sys_infra.api_utils import create_project
-from sys_infra.commit import get_host
+from sys_infra.api_utils import (
+    create_project,
+    delete_project_by_name,
+    get_project_by_name,
+)
+from sys_infra.commit import check_api_server, get_host
 from sys_infra.environment import LIB_DIR, REPO_ROOT, SysandPackageStructure
 from sys_infra.utils import _USE_COLOR, bold, cyan, dim, green, red, yellow
 
@@ -1315,6 +1319,164 @@ def run_verify(
         # _publish(all_layers, project_name, project_dir)
 
     sys.exit(0 if all_pass else 1)
+
+
+# ── Publish entry point (sysml publish) ───────────────────────────────────────
+
+
+def _resolve_version() -> str:
+    """Model version string: GIT_SHA env, else the consumer repo's short HEAD."""
+    import subprocess  # noqa: PLC0415
+
+    sha = os.environ.get("GIT_SHA")
+    if sha:
+        return sha
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return out.stdout.strip() or "unknown"
+    except Exception:
+        return "unknown"
+
+
+def _record_published_version(api_project_name: str, version: str) -> None:
+    """Persist the published version and best-effort set it on the API project."""
+    import datetime  # noqa: PLC0415
+
+    os.makedirs(LIB_DIR, exist_ok=True)
+    record = {
+        "project": api_project_name,
+        "version": version,
+        "published_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    }
+    out_path = os.path.join(LIB_DIR, "published-version.json")
+    with open(out_path, "w") as fh:
+        json.dump(record, fh, indent=2)
+    print(f"  {dim('Version recorded in lib/published-version.json')}")
+
+    # Best-effort: also stamp the version onto the API project description. Some
+    # pilot API builds do not support updating a project, so failure is non-fatal.
+    try:
+        import requests  # noqa: PLC0415
+
+        proj = get_project_by_name(api_project_name)
+        if proj is not None:
+            requests.put(
+                f"{get_host()}/projects/{proj['@id']}",
+                json={
+                    "@type": "Project",
+                    "name": api_project_name,
+                    "description": f"version: {version}",
+                },
+                timeout=30,
+            )
+    except Exception as exc:
+        print(dim(f"  (Could not set project description on API: {exc})"))
+
+
+def run_publish(
+    project_dir: Path,
+    force: bool = False,
+    version: str | None = None,
+    verbose: bool = False,
+) -> None:
+    """Publish the model to the local SysML v2 API as ONE versioned project.
+
+    Pythonises mons_wp1's publish_bilgepump.sh: reuses the API server check
+    (sys_infra.commit.check_api_server) and the unified umbrella-publish notebook
+    generator (sys_infra.publish_notebook). The whole model is published under a
+    single STABLE project name (the manifest ``publish_root``), and one tagged
+    ``%eval`` cell per assertion is executed so the materializer can build the
+    ``sysml_assertions`` table.
+
+    Versioning policy: the project carries a single version (a git SHA by
+    default); republishing with --force deletes the previous project of the same
+    name rather than accumulating versions.
+    """
+    from sys_infra.publish_notebook import build_publish_notebook
+
+    print("Using project: ", project_dir)
+    if not project_dir.exists():
+        print(red(f"ERROR: Project directory not found: {project_dir}"))
+        sys.exit(2)
+
+    # 1. API must be reachable.
+    check_api_server()
+
+    # 2. Manifest must exist (layers/publish_root resolved by the generator).
+    manifest = project_dir / "sysml-project.yml"
+    if not manifest.exists():
+        print(red(f"ERROR: sysml-project.yml not found at {manifest}"))
+        sys.exit(2)
+
+    # 3. Kernel is required to publish (no Python fallback for publishing).
+    kernel_name = _discover_sysml_kernel()
+    if kernel_name is None:
+        print(red("ERROR: SysML v2 kernel not found — cannot publish."))
+        print(dim("  Install it with setup.sh, then retry."))
+        sys.exit(2)
+
+    # 4. Version string (explicit --version wins).
+    version = version or _resolve_version()
+
+    # 5. Build the unified publish notebook (umbrella package + %eval cells).
+    try:
+        nb, publish_root = build_publish_notebook(
+            project_dir, kernel_name, version=version
+        )
+    except (ValueError, FileNotFoundError, OSError) as exc:
+        print(red(f"ERROR: could not build the publish notebook: {exc}"))
+        sys.exit(2)
+
+    # 6. Idempotency + delete-previous (keep only the latest version).
+    existing = get_project_by_name(publish_root)
+    if existing is not None:
+        if not force:
+            print(
+                green(f"\n  Already published as '{publish_root}'. ")
+                + dim("Use --force to republish.")
+            )
+            sys.exit(0)
+        print(
+            yellow(
+                f"\n  --force: deleting previous project '{publish_root}' "
+                f"(ID {existing['@id']}) before republishing."
+            )
+        )
+        delete_project_by_name(publish_root)
+
+    # 7. Execute the notebook headlessly: publish + evaluate every assertion.
+    try:
+        import nbformat
+        from nbclient import NotebookClient
+        from nbclient.exceptions import CellExecutionError
+    except ImportError as exc:
+        print(red(f"ERROR: {exc}"))
+        print("  Install CI dependencies:  pip install nbclient nbformat")
+        sys.exit(2)
+
+    out_path = project_dir / "publish.ipynb"
+    print(f"\n  {bold('Publishing model version:')} {version} → project '{publish_root}'")
+    try:
+        NotebookClient(nb, timeout=600, kernel_name=kernel_name).execute()
+    except CellExecutionError as exc:
+        nbformat.write(nb, str(out_path))
+        print(red(f"\n  Publish FAILED — kernel error while executing publish.ipynb:\n{exc}"))
+        sys.exit(1)
+
+    # Persist the executed notebook so materialize_sysml_values.py can read the
+    # tagged %eval outputs into the sysml_assertions table.
+    nbformat.write(nb, str(out_path))
+
+    # 8. Record the published version (+ best-effort API description stamp).
+    _record_published_version(publish_root, version)
+
+    print(green(f"\n  ✓ Published '{publish_root}' (version {version})."))
+    sys.exit(0)
 
 
 if __name__ == "__main__":

@@ -363,7 +363,18 @@ uv run python /mnt/c/Users/SINKAA/Desktop/code/reactor_sys/jupyer-kernel/install
 
 
 ## Containerised sysml v2 pilot API
-To build image docker or podman 
+
+The stack (PostgreSQL + pgAdmin + the SysML v2 pilot API) is defined as a base
+compose file plus two overlays, so the same services serve CI, local dev behind
+the DNV proxy, and a persistent "publish once, query forever" setup:
+
+| File | Adds | Use for |
+|---|---|---|
+| `docker-compose.yaml` | base services, healthcheck, runtime-mounted `patches/persistence.xml` | CI / ephemeral (no secrets, no volume) |
+| `docker-compose-local.yaml` | zscaler CA secret (build + pgAdmin TLS) | dev behind the DNV proxy |
+| `docker-compose.persist.yaml` | stable project name + named `sysml2-pgdata` volume | persistent local database |
+
+To build the image directly with docker or podman:
 ```
 docker build -f Dockerfile_pilot_api . --tag sysmlv2-pilot-api
 ```
@@ -371,20 +382,27 @@ docker build -f Dockerfile_pilot_api . --tag sysmlv2-pilot-api
 podman build -f Dockerfile_pilot_api . --tag sysmlv2-pilot-api
 ```
 
-To build and run the pilot api with postgres container with docker/podman: 
+Bring the stack up by layering the overlays you need:
 ```
-docker compose up --build
+# CI / ephemeral
+docker compose -f docker-compose.yaml up --build
+
+# Local behind the DNV proxy (needs CERT_PATH, see below)
+docker compose -f docker-compose.yaml -f docker-compose-local.yaml up --build
+
+# Persistent local: published models survive restarts
+docker compose -f docker-compose.yaml -f docker-compose-local.yaml -f docker-compose.persist.yaml up -d --build
 ```
-```
-podman-compose up --build
-```
-You need podman-compose for this. 
-```
-sudo apt install podman-compose
-```
-### Certificate issue in docker container: 
+For podman use `podman-compose` (`sudo apt install podman-compose`) with the
+same `-f` overlays.
+
+> The persistent overlay keeps the database in the `sysml2-pgdata` volume. Do
+> **not** run `docker compose ... down -v` unless you intend to wipe every
+> published model.
+
+### Certificate issue in docker container:
 Due to the dnv proxy certificates have to be manually mounted into the container runtime. Follow instructions from here and add the env variable
-CERT_PATH=/path/to/cerfile.cert in .env file of repo. 
+CERT_PATH=/path/to/cerfile.cert in .env file of repo (then include `-f docker-compose-local.yaml`).
 
 https://sslinsights.com/pkix-path-building-failed-unable-to-find-valid-certification-path/
 

@@ -1,0 +1,14 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "sysml2-postgres",
+      "Group": "Servers",
+      "Host": "sysmldb",
+      "Port": 5432,
+      "MaintenanceDB": "sysml2",
+      "Username": "postgres",
+      "Password": "mysecretpassword",
+      "SSLMode": "prefer"
+    }
+  }
+}
