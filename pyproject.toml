@@ -38,7 +38,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["sys_infra"]
+packages = ["sys_infra", "resolver"]
 
 [project.scripts]
 commit = "sys_infra.commit:main"
