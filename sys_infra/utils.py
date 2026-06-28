@@ -52,6 +52,23 @@ def dim(t: str) -> str:
     return _c("2", t)
 
 
+# ── Kernel path: nbclient execution ──────────────────────────────────────────
+def _discover_sysml_kernel() -> str | None:
+    try:
+        import jupyter_client
+
+        installed = jupyter_client.kernelspec.find_kernel_specs()
+    except Exception:
+        return None
+    for candidate in ("sysml2", "sysml"):
+        if candidate in installed:
+            return candidate
+    for k in installed:
+        if "sysml" in k.lower():
+            return k
+    return None
+
+
 # ── Manifest reader (same logic as ci_kernel_validate.py) ────────────────────
 def _read_manifest(path: str) -> tuple[str, list[str], list[str] | None]:
     name = "SysMLProject"
@@ -144,7 +161,6 @@ def run_kernel_publish(
         "name": kernel_name,
     }
 
-    # ── Model layer cells ─────────────────────────────────────────────────────
     n_model_cells = 3
     all_packages = []
     package_name = f"{project_name}Super"
@@ -179,11 +195,6 @@ def run_kernel_publish(
         resources={"metadata": {"path": project_dir}},
     )
 
-    # The SysML kernel JAR writes ~50 lines of "Reading *.kerml" messages plus
-    # log4j and JUL INFO logs via the inherited stdout/stderr file descriptors.
-    # Redirect fd 1 and fd 2 at the OS level before execute() starts the subprocess
-    # so those messages are silently discarded.  We flush first to avoid losing
-    # any buffered Python output, then restore after execute() returns.
     sys.stdout.flush()
     sys.stderr.flush()
     _saved_out = os.dup(1)
@@ -197,7 +208,7 @@ def run_kernel_publish(
     try:
         client.execute()
     except CellExecutionError:
-        pass  # We inspect outputs below regardless
+        pass
     except Exception as exc:
         _exec_error = exc
     finally:
@@ -210,7 +221,6 @@ def run_kernel_publish(
         print(red(f"\nKernel execution error: {_exec_error}"))
         return False, []
 
-    # ── Parse model layer results ─────────────────────────────────────────────
     cell_results: list[dict] = []
     all_ok = True
     for i in range(n_model_cells):
@@ -228,7 +238,7 @@ def run_kernel_publish(
     return all_ok, cell_results
 
 
-def run_kernel_layers(layer_paths: list[Path], nb) -> tuple[bool, list[Any]]:
+def append_kernel_layers(layer_paths: list[Path], nb) -> tuple[bool, list[Any]]:
     """
     Publishes the layers one by on in sequence.
     """
@@ -313,21 +323,18 @@ def parse_sysml(text):
     req_usages = []
 
     for match in re.finditer(r"requirement\s+(?:<([^>]+)>\s+)?(\w+)\s*:\s*(\w+)", text):
-        tag = match.group(1)  # e.g. R1
-        name = match.group(2)  # r_safe
-        typename = match.group(3)  # FlowRateRequirement
+        tag = match.group(1)
+        name = match.group(2)
+        typename = match.group(3)
 
         attr = req_defs.get(typename)
 
         if attr:
             if tag:
-                req_usages.append((tag, attr))  # R1.req
+                req_usages.append((tag, attr))
             else:
-                req_usages.append((name, attr))  # r_loss.req
+                req_usages.append((name, attr))
 
-    # ---------------------------
-    # Parse part usages
-    # ---------------------------
     parts = {}
 
     for match in re.finditer(r"part\s+(\w+)\s*:\s*(\w+)\s*{([^}]*)}", text, re.DOTALL):
