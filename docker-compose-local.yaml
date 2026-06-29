@@ -1,8 +1,10 @@
+# DNV / Zscaler proxy overlay: injects the corporate CA so the image build
+# (git clone + sbt) and pgAdmin TLS work behind the proxy. Layer it on the base
+# (never used on its own):
+#   docker compose -f docker-compose.yaml -f docker-compose-local.yaml up
+# Requires CERT_PATH in .env pointing at the zscaler cert (see .example.env).
 services:
   pgadmin:
-    extends: 
-      file: docker-compose.yaml
-      service: pgadmin
     environment:
       - REQUESTS_CA_BUNDLE=/run/secrets/zscaler
       - SSL_CERT_FILE=/run/secrets/zscaler
@@ -10,16 +12,10 @@ services:
       - zscaler
 
   sysml_v2_pilot_api:
-    extends: 
-      file: docker-compose.yaml
-      service: sysml_v2_pilot_api
     build:
       secrets:
         - zscaler
-  sysmldb: 
-    extends: 
-      file: docker-compose.yaml
-      service: sysmldb
+
 secrets:
   zscaler:
     file: ${CERT_PATH}

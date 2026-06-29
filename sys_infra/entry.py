@@ -7,7 +7,7 @@ from scripts.ci_kernel_validate import run_validate
 from scripts.debug_kernel_eval import run_eval
 from scripts.sensor_adapter import run_sensor
 from scripts.sysml_check import run_check
-from sys_infra.verify import run_verify
+from sys_infra.verify import run_publish, run_verify
 from pathlib import Path
 
 load_dotenv()
@@ -77,10 +77,29 @@ def create_parser() -> argparse.ArgumentParser:
     )
 
     # =========================================================
+    # PUBLISH
+    # =========================================================
+    publish = subparsers.add_parser(
+        "publish", help="Publish the model to the local SysML v2 API"
+    )
+    publish.add_argument(
+        "--project-dir", default=default_project_dir, help="Project directory"
+    )
+    publish.add_argument(
+        "--force",
+        action="store_true",
+        help="Delete the previous project of the same name and republish.",
+    )
+    publish.add_argument(
+        "--version",
+        metavar="SHA",
+        help="Model version label (defaults to GIT_SHA env or git short HEAD).",
+    )
+
+    # =========================================================
     # SENSOR
     # =========================================================
     sensor = subparsers.add_parser("sensor", help="Sensor adapter")
-
     sensor.add_argument("--config", metavar="FILE")
     sensor.add_argument("--demo", action="store_true")
     sensor.add_argument("--once", action="store_true")
@@ -148,6 +167,14 @@ def main() -> None:
             live=args.live,
             verbose=args.verbose,
             published=args.published,
+        )
+
+    elif args.command == "publish":
+        run_publish(
+            project_dir=Path(args.project_dir),
+            force=args.force,
+            version=args.version,
+            verbose=args.verbose,
         )
 
     elif args.command == "sensor":
