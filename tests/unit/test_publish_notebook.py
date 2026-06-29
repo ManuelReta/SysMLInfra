@@ -96,6 +96,8 @@ class TestBuildNotebook:
 
     def test_missing_package_declaration_raises(self, tmp_path):
         _write_project(tmp_path)
-        (tmp_path / "Library.sysml").write_text("// no package here\n", encoding="utf-8")
+        (tmp_path / "Library.sysml").write_text(
+            "// no package here\n", encoding="utf-8"
+        )
         with pytest.raises(ValueError, match="No top-level 'package"):
             build_publish_notebook(tmp_path, "sysml")
