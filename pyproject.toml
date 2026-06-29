@@ -49,11 +49,5 @@ markers = [
     "integration: requires a running SysML v2 API at localhost:9000",
     "model: static model structure tests, no kernel or DB required",
     "z3: Z3 SMT solver tests",
-]
-
-
-[pytest]
-markers = [
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-    "sysmlkernel",
+    "sysmlkernel: requires the sysml v2 kernel", 
 ]
