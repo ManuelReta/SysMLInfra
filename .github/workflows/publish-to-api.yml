@@ -35,11 +35,8 @@ jobs:
           API_BASE: http://localhost:9000
         run: uv run python -m sys_infra.entry verify --publish
 
-      - name: Run integration tests
-        run: uv run python -m pytest -m "integration" --no-docker # --cov=. --cov-report=term
-        
-      - name: Run sysmlkernel tests
-        run: uv run python -m pytest -m "sysmlkernel" --no-docker # --cov=. --cov-report=term
+      - name: Run integration and sysmlkernel tests
+        run: uv run python -m pytest -m "integration or sysmlkernel" --no-docker --cov=. --cov-report=term
 
       - name: Upload publish state artifact
         if: always()
