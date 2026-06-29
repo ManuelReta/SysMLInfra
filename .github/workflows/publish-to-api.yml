@@ -37,6 +37,9 @@ jobs:
 
       - name: Run integration tests
         run: uv run python -m pytest -m "integration" --no-docker # --cov=. --cov-report=term
+        
+      - name: Run sysmlkernel tests
+        run: uv run python -m pytest -m "sysmlkernel" --no-docker # --cov=. --cov-report=term
 
       - name: Upload publish state artifact
         if: always()
