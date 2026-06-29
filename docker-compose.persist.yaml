@@ -1,0 +1,20 @@
+# Persistent overlay: a stable project name plus a named volume so published
+# SysML models survive container restarts/recreation ("publish once, query
+# forever"). Layer it on top of the base (and, behind the DNV proxy, the local
+# overlay):
+#   docker compose -f docker-compose.yaml -f docker-compose.persist.yaml up -d
+#   docker compose -f docker-compose.yaml -f docker-compose-local.yaml -f docker-compose.persist.yaml up -d
+#
+# Pairs with patches/persistence.xml using hbm2ddl.auto=update (schema is kept,
+# not dropped). Do NOT run `docker compose ... down -v` unless you intend to
+# wipe every published model.
+name: mons-sysml
+
+services:
+  sysmldb:
+    volumes:
+      - sysml2-pgdata:/var/lib/postgresql/data
+
+volumes:
+  # Named volume holding the PostgreSQL data directory for the sysml2 database.
+  sysml2-pgdata:

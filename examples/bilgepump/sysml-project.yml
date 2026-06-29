@@ -32,6 +32,11 @@ description: "SysML v2 bilge pump verification — IMO MARPOL, DNV, IEC 60945, S
 # into the umbrella — no other file needs editing for the publish step.
 publish_root: BilgePump
 
+# assertions_module — optional python module (next to this manifest) exposing an
+# ASSERTIONS list. `sysml publish` emits one tagged `%eval` cell per entry so the
+# executed verdicts can be materialized into the `sysml_assertions` table.
+assertions_module: bilgepump_assertions
+
 # All 9 layers — full model including safety, FMEA, UQ, and state machine extensions.
 layers:
   - RAAML.sysml

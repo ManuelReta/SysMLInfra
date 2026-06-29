@@ -57,3 +57,51 @@ def create_project(api_base: str, project_name: str, timeout: int = 1500) -> int
         return r.status_code
 
     return r.json()
+
+
+def set_project_description(project_name: str, description: str) -> bool:
+    """Best-effort: stamp a description onto the named project. Non-fatal.
+
+    Some pilot API builds do not support updating a project, so any failure is
+    swallowed and ``False`` is returned.
+    """
+    try:
+        proj = get_project_by_name(project_name)
+        if proj is None:
+            return False
+        r = requests.put(
+            f"{get_host()}/projects/{proj['@id']}",
+            json={
+                "@type": "Project",
+                "name": project_name,
+                "description": description,
+            },
+            timeout=30,
+        )
+        return r.status_code in (200, 201, 204)
+    except Exception:
+        return False
+
+
+class SysMLApiClient:
+    """API interfacing: project CRUD against the SysML v2 pilot REST API.
+
+    Groups the project endpoints behind one host so callers (e.g. Publisher)
+    depend on a single collaborator. Methods delegate to the module functions,
+    which stay as the low-level shims used elsewhere.
+    """
+
+    def __init__(self, host: str | None = None) -> None:
+        self.host = host or get_host()
+
+    def get_by_name(self, project_name: str):
+        return get_project_by_name(project_name)
+
+    def create(self, project_name: str, timeout: int = 1500) -> int | dict:
+        return create_project(self.host, project_name, timeout=timeout)
+
+    def delete_by_name(self, project_name: str) -> None:
+        delete_project_by_name(project_name)
+
+    def set_description(self, project_name: str, description: str) -> bool:
+        return set_project_description(project_name, description)
