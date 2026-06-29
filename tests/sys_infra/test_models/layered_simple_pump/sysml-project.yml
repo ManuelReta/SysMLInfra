@@ -1,5 +1,11 @@
 name: LayeredTestModel
 description: "Test model for integration"
-
+version: 0.0.1
 layers:
   - layered_simple_pump.sysml
+publish_root: LayeredTestModel
+
+dependencies: 
+  - name: RollupTestModel
+    source: path
+    path: ../rollup

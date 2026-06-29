@@ -1,5 +1,13 @@
 name: RollupTestModel
 description: "Test model for integration"
+version: 0.0.1
+publish_root: RollupTestModel
 
 layers:
   - rollup.sysml
+
+
+dependencies: 
+  - name: SimpleTestModel
+    source: path
+    path: ../simple_pump

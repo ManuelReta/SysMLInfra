@@ -2,11 +2,11 @@ import re
 
 from pathlib import Path
 from typing import Any
-
+import logging
 from sys_infra.utils import (
+    SysMLProjectReader,
     generate_eval_commands,
     parse_sysml,
-    read_layers,
     run_kernel_publish,
     kernel_evaluate,
     append_kernel_layers,
@@ -16,11 +16,16 @@ import nbformat
 
 
 class Pipeline:
-    def __init__(self, project_dir: Path) -> None:
+    def __init__(
+        self, project_dir: Path, reader: type[SysMLProjectReader] = SysMLProjectReader
+    ) -> None:
         self.project_dir = project_dir
-        self.project_name, self.all_layers, self.validation_layers, self.MANIFEST = (
-            read_layers(project_dir=self.project_dir)
-        )
+        read_layers = reader(self.project_dir)
+
+        self.project_name = read_layers.get_name()
+        self.all_layers = read_layers.get_layers()
+        self.validation_layers = read_layers.get_validation_layers()
+
         self.kernel_name = _discover_sysml_kernel()
         if self.kernel_name is None:
             raise ValueError("Kernel not found")
@@ -84,13 +89,13 @@ class Pipeline:
             requirement = result["in"]
             text = result["out"][0]["data"]["text/plain"]
             match_found = bool(re.search(r"\btrue\b", text))
-            print(f"Requirement {requirement}: {match_found}")
+            logging.info(f"Requirement {requirement}: {match_found}")
 
 
 if __name__ == "__main__":
     p = Pipeline(
         Path(
-            "/mnt/c/Users/SINKAA/Desktop/code/mons_wp1/SysMLInfra/tests/sys_infra/test_models/layered_simple_pump"
+            "/mnt/c/Users/SINKAA/Desktop/code/mons_wp1/SysMLInfra/tests/sys_infra/test_models/layered_simple_pump/build/LayeredTestModel_0.0.1"
         )
     )
     p()

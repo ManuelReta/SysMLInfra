@@ -1,4 +1,5 @@
 package RollupSystem {
+    private import ScalarValues::Boolean;
     part def MassedThing {
         attribute mass :> ISQ::mass; 
         attribute totalMass :> ISQ::mass;
@@ -36,13 +37,12 @@ package RollupSystem {
     part spacecraft :> spacecraftSystem {
         part propulsion: PropulsionSystem subsets subsystems;    
         part power: PowerSystem subsets subsystems;
-        // etc...
     }
 
     part spacecraft_1 :> spacecraft {
         private import SI::*;
         
-        redefines mass = 1000 [kg];
+        :>> mass = 1000 [kg];
         
         part redefines propulsion {
             redefines mass = 100 [kg];
@@ -54,5 +54,6 @@ package RollupSystem {
                 redefines mass = 10 [kg];
             }
         }
+        attribute req : Boolean = power.mass >= 30.0;
     }
 }

@@ -1,5 +1,6 @@
 name: SimpleTestModel
 description: "Test model for integration"
-
+version: 0.0.1
+publish_root: SimpleTestModel
 layers:
   - simple_pump.sysml

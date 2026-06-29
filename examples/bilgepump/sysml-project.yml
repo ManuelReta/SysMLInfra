@@ -20,6 +20,7 @@
 # =============================================================================
 
 name: BilgePumpSystem
+version: 0.0.1
 description: "SysML v2 bilge pump verification — IMO MARPOL, DNV, IEC 60945, SOLAS"
 
 # publish_root — the umbrella package name for the UNIFIED single-project publish.

@@ -8,6 +8,7 @@ from nbclient.exceptions import CellExecutionError
 from sys_infra.commit import get_host
 from sys_infra.environment import ManuelPackageStructure, SysandPackageStructure
 import re
+import yaml
 
 
 def _read(path: str) -> str:
@@ -67,6 +68,90 @@ def _discover_sysml_kernel() -> str | None:
         if "sysml" in k.lower():
             return k
     return None
+
+
+class SysMLProjectReader:
+    def __init__(self, project_dir: Path):
+        self.project_dir = project_dir
+        self.manifest_path = project_dir / "sysml-project.yml"
+        self.root_deps_dir = project_dir / "deps"
+
+        if not self.project_dir.exists():
+            raise FileNotFoundError(f"Project directory not found: {project_dir}")
+
+        self.visited: set = set()
+
+        self.name = ""
+        self.layers: list[Path] = []
+        self.validation_layers: list[Path] | None = None
+        self._load()
+
+    def _load(self) -> None:
+        all_layers: list[Path] = []
+        validation_layers: list[Path] = []
+
+        self._resolve_project(self.project_dir, all_layers, validation_layers)
+
+        self.layers = all_layers
+        self.validation_layers = validation_layers if validation_layers else None
+
+    def _resolve_project(
+        self, project_dir: Path, all_layers: list[Path], validation_layers: list[Path]
+    ) -> None:
+        manifest_path: Path = project_dir / "sysml-project.yml"
+
+        if not manifest_path.exists():
+            sysml_files = sorted(project_dir.glob("*.sysml"))
+
+            for f in sysml_files:
+                self._add_layer(f.resolve(), all_layers)
+
+            return
+
+        with open(manifest_path) as ff:
+            data = yaml.safe_load(ff)
+
+        if not self.name:
+            self.name = data.get("name", project_dir.name)
+
+        deps = data.get("dependencies", [])
+
+        for dep in deps:
+            dep_name = dep["name"]
+            dep_dir = self.root_deps_dir / dep_name
+
+            if not dep_dir.exists():
+                raise FileNotFoundError(f"Dependency not found: {dep_dir}")
+
+            if dep_dir in self.visited:
+                continue
+
+            self.visited.add(dep_dir)
+            self._resolve_project(dep_dir, all_layers, validation_layers)
+
+        for layer in data.get("layers", []):
+            full_path = (project_dir / layer).resolve()
+            self._add_layer(full_path, all_layers)
+
+        for layer in data.get("validation_layers", []) or []:
+            full_path = (project_dir / layer).resolve()
+            validation_layers.append(full_path)
+
+    def _add_layer(self, path: Path, layer_list: list[Path]):
+        if not path.exists():
+            raise FileNotFoundError(f"Layer not found: {path}")
+
+        if path not in layer_list:
+            layer_list.append(path)
+
+    def get_layers(self) -> list[Path]:
+        return self.layers
+
+    def get_validation_layers(self) -> list[Path] | None:
+        return self.validation_layers
+
+    def get_name(self) -> str:
+        return self.name
 
 
 # ── Manifest reader (same logic as ci_kernel_validate.py) ────────────────────
