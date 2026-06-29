@@ -38,7 +38,7 @@ jobs:
         run: uv run python -m sys_infra.entry verify --publish
 
       - name: Run integration tests
-        run: uv run python -m pytest -m integration --no-docker --cov=. --cov-report=term
+        run: uv run python -m pytest -m "integration and sysmlkernel" --no-docker --cov=. --cov-report=term
 
       - name: Upload publish state artifact
         if: always()
