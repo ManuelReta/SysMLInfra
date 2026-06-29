@@ -1,6 +1,8 @@
 from sys_infra.environment import INTEGRATION_EXAMPLES_DIR
-from sys_infra.verify import Pipeline
+
 import pytest
+
+from sys_infra.kernel_evaluation import Pipeline
 
 
 @pytest.mark.sysmlkernel
