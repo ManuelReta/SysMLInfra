@@ -50,3 +50,10 @@ markers = [
     "model: static model structure tests, no kernel or DB required",
     "z3: Z3 SMT solver tests",
 ]
+
+
+[pytest]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "sysmlkernel",
+]
