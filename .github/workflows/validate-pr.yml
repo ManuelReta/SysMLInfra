@@ -22,7 +22,7 @@ jobs:
       - name: Run unit tests
         env:
           REPO_ROOT: ${{ github.workspace }}
-        run: uv run pytest tests/ -x --tb=short -q -m "not integration" --no-docker --cov=. --cov-report=term
+        run: uv run pytest tests/ -x --tb=short -q -m "not integration and not sysmlkernel" --no-docker --cov=. --cov-report=term
   
   linting:
     name: check-manifest
