@@ -11,10 +11,8 @@ on:
       - main
 jobs:
   publish:
-    name: publish-to-api
+    name: Publish to local API
     runs-on: ubuntu-latest
-    
-
     steps:
       - name: Checkout
         uses: actions/checkout@v5
