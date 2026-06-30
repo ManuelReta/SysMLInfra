@@ -25,7 +25,7 @@ jobs:
         run: uv run pytest tests/ -x --tb=short -q -m "not integration and not sysmlkernel" --no-docker --cov=. --cov-report=term
   
   linting:
-    name: Linting (mypy and ruff)
+    name: check-manifest
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
