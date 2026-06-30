@@ -11,10 +11,8 @@ on:
       - main
 jobs:
   publish:
-    name: publish-to-api
+    name: Publish to local API
     runs-on: ubuntu-latest
-    
-
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -37,8 +35,8 @@ jobs:
           API_BASE: http://localhost:9000
         run: uv run python -m sys_infra.entry verify --publish
 
-      - name: Run integration tests
-        run: uv run python -m pytest -m integration --no-docker --cov=. --cov-report=term
+      - name: Run integration and sysmlkernel tests
+        run: uv run python -m pytest -m "integration or sysmlkernel" --no-docker --cov=. --cov-report=term
 
       - name: Upload publish state artifact
         if: always()

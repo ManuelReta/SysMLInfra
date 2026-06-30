@@ -248,6 +248,26 @@ def get_all_elements(base_url: str, project_id: str, commit_id: str):
     return r.json()
 
 
+def get_requirements(elements):
+    return [el for el in elements if el.get("type") == "RequirementUsage"]
+
+
+def extract_req_expression(req_element):
+    for feature in req_element.get("features", []):
+        if feature.get("name") == "req":
+            return feature
+    return None
+
+
+def evaluate_expression(expr_text, target=None):
+    payload = {"expression": expr_text, "target": target}
+
+    url = f"{get_host()}/eval"
+    response = requests.post(url, json=payload)
+    response.raise_for_status()
+    return response.text
+
+
 def update_numeric_literal(
     project_id: str,
     branch_id: str,
