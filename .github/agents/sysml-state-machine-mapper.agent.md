@@ -188,11 +188,15 @@ For each object in `constraints[]`:
 Algorithm:
 ```python
 for constraint in simulink_data["constraints"]:
-    bound_param = extract_lhs_param(constraint["equation"])   # e.g. "responseTime_s"
-    max_param   = extract_rhs_param(constraint["equation"])   # e.g. "maxResponseTime_s"
-    nominal_val = [s["value"] for s in constraint["simulink_scenarios"] if s["result"]=="PASS"][0]
-    max_val     = constraint["simulink_scenarios"][0][max_param]
-    fault_scenario = [s for s in constraint["simulink_scenarios"] if s.get("value",0) > max_val*100]
+    bound_param = extract_lhs_param(constraint["equation"])  # e.g. "responseTime_s"
+    max_param = extract_rhs_param(constraint["equation"])  # e.g. "maxResponseTime_s"
+    nominal_val = [
+        s["value"] for s in constraint["simulink_scenarios"] if s["result"] == "PASS"
+    ][0]
+    max_val = constraint["simulink_scenarios"][0][max_param]
+    fault_scenario = [
+        s for s in constraint["simulink_scenarios"] if s.get("value", 0) > max_val * 100
+    ]
     # → emit transition with guard comment: bound_param <= max_val
     # → fault scenario → emit FAULT or FAILOVER state link
 ```

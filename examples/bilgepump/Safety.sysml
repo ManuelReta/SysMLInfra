@@ -33,7 +33,8 @@
 
 package BilgePump_Safety {
     private import ScalarValues::*;
-    public import BilgePump_RAAML::*;
+    // RAAML stereotypes (Hazard/Loss/UCA/…) were folded into Requirements.sysml;
+    // they arrive via the existing BilgePump_Requirements import below.
     public import BilgePump_Library::*;
     public import BilgePump_Architecture::*;
     public import BilgePump_Requirements::*;

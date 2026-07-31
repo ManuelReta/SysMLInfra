@@ -29,7 +29,8 @@
 
 package BilgePump_FMEA {
     private import ScalarValues::*;
-    public import BilgePump_RAAML::*;
+    // RAAML stereotypes (Hazard/Loss/UCA/FailureMode/…) were folded into
+    // Requirements.sysml; they arrive via the BilgePump_Requirements import below.
     public import BilgePump_Library::*;
     public import BilgePump_Architecture::*;
     public import BilgePump_Requirements::*;

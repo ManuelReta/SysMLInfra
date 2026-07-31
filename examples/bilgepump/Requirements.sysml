@@ -26,6 +26,131 @@ package BilgePump_Requirements {
     public import BilgePump_Architecture::*;
 
     // =========================================================================
+    // Claim-nature flags (Epic-1 extensibility prototype — step 1)
+    //
+    // Two metadata def stereotypes that let a requirement DECLARE its own nature,
+    // so the machinery for that nature activates only when flagged (opt-in):
+    //
+    //   #Probabilistic  — the claim is genuinely probabilistic and MUST be
+    //                     discharged by a sampling method (Monte Carlo / LHS).
+    //                     The deterministic UQ sweep is NOT accepted. Applied to
+    //                     NONE today: no in-scope claim is probabilistic, so the
+    //                     extension correctly stays dormant (defaults OFF).
+    //   #HazardBearing  — the claim carries a hazard→mitigation obligation.
+    //                     Assigned OBJECTIVELY from the DNV corpus necessity
+    //                     fields (necessity.prevents_major_accident /
+    //                     prevents_fatality == true), never by convenience.
+    //                     See docs/epic-1/requirements_mapping.py + the source
+    //                     JSON necessity block.
+    //
+    // metadata def publishes on the pinned kernel today. Folded here (not a new
+    // layer) to avoid a manifest/umbrella edit and to keep the flag defined in
+    // the same package where it is applied.
+    // =========================================================================
+    metadata def Probabilistic {
+        attribute epsilon : Real;   // acceptable exceedance probability
+        attribute method  : String; // "MonteCarlo" | "LHS" — sweep is NOT accepted
+    }
+    metadata def HazardBearing {
+        attribute hazardRef   : String; // Safety.sysml hazard id (H-xxx)
+        attribute mitigatedBy : String; // FMEA verdict key (FM-xxx) that discharges it
+    }
+
+    // =========================================================================
+    // RAAML provenance stereotypes (relocated from the former RAAML.sysml layer)
+    //
+    // These OMG RAAML v1.0 metadata defs were their own layer (RAAML.sysml,
+    // RAAML-first import order). RAAML is render-only — 0 of the model's verdict
+    // rows depend on it — so keeping it as a separate .sysml only raised the file
+    // count and the umbrella-assembly burden. The STPA hazard→loss→UCA provenance
+    // (mandatory case content) is preserved verbatim here; only the location moved.
+    //
+    // They live in Requirements (not Library) because Safety.sysml and FMEA.sysml
+    // — the only consumers — already `public import BilgePump_Requirements::*`, so
+    // dropping their `import BilgePump_RAAML::*` line is the whole migration. No
+    // new import edges, and Requirements is loaded before Safety/FMEA, so the
+    // stereotypes are defined before they are applied (kernel-valid ordering).
+    //
+    // Reference: OMG RAAML v1.0 https://www.omg.org/spec/RAAML/1.0
+    // =========================================================================
+
+    // Hazard — STAMP condition that, with a worst-case environment, leads to a
+    // Loss. SOURCE: STPA Handbook (MIT Press, 2018) §3.2; OMG RAAML §7.3
+    metadata def Hazard {
+        attribute hazardId : String;       // e.g. "H-1"
+        attribute description : String;     // Short hazard statement
+        attribute lossRefs : String;        // Comma-separated Loss IDs, e.g. "L-0,L-1"
+        attribute severity : String;        // catastrophic | critical | marginal | negligible
+        attribute regulatoryRef : String;   // e.g. "SOLAS II-1 Reg.35"
+        attribute sourceDoc : String;
+        attribute section : String;
+    }
+
+    // Loss — stakeholder-unacceptable outcome. SOURCE: STPA Handbook §3.1; RAAML §7.2
+    metadata def Loss {
+        attribute lossId : String;          // e.g. "L-0"
+        attribute description : String;
+        attribute category : String;        // safety | environmental | mission | financial
+        attribute severity : String;
+        attribute regulatoryRef : String;
+        attribute sourceDoc : String;
+        attribute section : String;
+    }
+
+    // UCA — Unsafe Control Action. SOURCE: STPA Handbook §4.2; RAAML §7.5
+    metadata def UCA {
+        attribute ucaId : String;           // e.g. "UCA-001"
+        attribute controlAction : String;   // e.g. "ActivatePumpA"
+        attribute guideword : String;       // Not Provided | Wrong Value | Too Late | Too Long
+        attribute context : String;
+        attribute hazardRefs : String;
+        attribute severity : String;
+        attribute failureModeLink : String; // Link to FMEA failure mode id (optional)
+        attribute transitionRef : String;   // StateMachine transition that eliminates it
+        attribute sourceDoc : String;
+        attribute section : String;
+    }
+
+    // FailureMode — FMEA record. SOURCE: MIL-STD-1629A; AIAG FMEA 4th Ed; RAAML §8.2
+    metadata def FailureMode {
+        attribute fmId : String;            // e.g. "FM-S-001"
+        attribute component : String;
+        attribute instance : String;
+        attribute failureModeText : String;
+        attribute failureEffect : String;
+        attribute severity : Integer;       // 1–10 AIAG scale
+        attribute occurrenceRating : Integer;
+        attribute detection : Integer;
+        attribute rpn : Integer;            // S×O×D
+        attribute ucaRef : String;
+        attribute hazardRef : String;
+        attribute stateRef : String;        // StateMachine state (optional)
+        attribute sourceDoc : String;
+        attribute section : String;
+    }
+
+    // FaultTree — FTA top event tag. SOURCE: IEC 61025; OMG RAAML §9.3
+    metadata def FaultTree {
+        attribute ftId : String;            // e.g. "FT-001"
+        attribute topEvent : String;
+        attribute gate : String;            // OR | AND
+        attribute cutSets : String;
+        attribute sourceDoc : String;
+        attribute section : String;
+    }
+
+    // SafetyRequirement — derived from a UCA or FMEA action (traceability bridge).
+    // SOURCE: STPA Handbook §5.1 (Safety Constraints → Safety Requirements)
+    metadata def SafetyRequirement {
+        attribute srId : String;            // e.g. "SR-001"
+        attribute derivedFrom : String;
+        attribute rationale : String;
+        attribute verificationMethod : String; // analysis | test | inspection | demonstration
+        attribute sourceDoc : String;
+        attribute section : String;
+    }
+
+    // =========================================================================
     // Requirement 1: Water Level Threshold
     //
     // Regulatory basis:
@@ -70,6 +195,14 @@ package BilgePump_Requirements {
     // DOORS / Jama traceability ID: BPS-REQ-002
     // =========================================================================
     requirement def PumpRedundancyRequirement {
+        // #HazardBearing — objectively derived: DNV corpus req #1 (>=2 pumping
+        // units) carries necessity.prevents_major_accident == true AND
+        // prevents_fatality == true (source JSON lines 28-30). Loss of the sole
+        // dewatering unit → uncontrolled flooding → loss of vessel/life.
+        #HazardBearing {
+            hazardRef   = "H-1";      // uncontrolled flooding / loss of vessel
+            mitigatedBy = "FM-C-003"; // failover-not-triggered FMEA verdict
+        }
         subject sys : BilgePumpSystem;
 
         doc
@@ -133,6 +266,15 @@ package BilgePump_Requirements {
     // DOORS / Jama traceability ID: BPS-REQ-004
     // =========================================================================
     requirement def DischargeCapacityRequirement {
+        // #HazardBearing — objectively derived: DNV corpus req #4 (unit
+        // composition + combined-capacity duty) carries
+        // necessity.prevents_major_accident == true AND prevents_fatality == true
+        // (source JSON lines 710-712). Insufficient discharge vs design inflow →
+        // flooding faster than dewatering → loss of vessel/life.
+        #HazardBearing {
+            hazardRef   = "H-1";      // uncontrolled flooding / loss of vessel
+            mitigatedBy = "FM-PB-001"; // redundant-pump failure FMEA verdict
+        }
         subject sys : BilgePumpSystem;
 
         // Design inflow rate from damage stability analysis (m³/s).

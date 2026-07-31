@@ -22,26 +22,24 @@
 name: BilgePumpSystem
 description: "SysML v2 bilge pump verification — IMO MARPOL, DNV, IEC 60945, SOLAS"
 
-# All 9 layers — full model including safety, FMEA, UQ, and state machine extensions.
+# All 7 layers — full model including safety, FMEA, and state machine extensions.
+# RAAML folded into Requirements.sysml (render-only provenance); UQ folded into
+# Analysis.sysml (worst-case margin probe). Neither is a standalone layer.
 layers:
-  - examples/bilgepump/RAAML.sysml
   - examples/bilgepump/Library.sysml
   - examples/bilgepump/Architecture.sysml
   - examples/bilgepump/Requirements.sysml
   - examples/bilgepump/Analysis.sysml
   - examples/bilgepump/Safety.sysml
   - examples/bilgepump/FMEA.sysml
-  - examples/bilgepump/UQ.sysml
   - examples/bilgepump/StateMachine.sysml
 
 # Positive-test subset for kernel CI execution.
 # FMEA.sysml: contains 4 negative-test analysis defs — designed to produce
 #             VIOLATED assertions (FM-S-001, FM-PA-002, FM-PB-001, FM-C-001).
-# UQ.sysml:   UQ_Sweep_10 (combined 3σ extreme) produces a VIOLATED assertion
-#             by design. Both files are syntax-validated via --dry-run.
+#             Syntax-validated via --dry-run, excluded from the positive subset.
 # StateMachine.sysml: no VIOLATED assertions; included in validation.
 validation_layers:
-  - examples/bilgepump/RAAML.sysml
   - examples/bilgepump/Library.sysml
   - examples/bilgepump/Architecture.sysml
   - examples/bilgepump/Requirements.sysml

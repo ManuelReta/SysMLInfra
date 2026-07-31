@@ -53,7 +53,6 @@ ASSERTIONS = _load_assertions()
 _PKG_FILE = {
     "BilgePump_Analysis": EXAMPLES_BILGEPUMP_DIR / "Analysis.sysml",
     "BilgePump_FMEA": EXAMPLES_BILGEPUMP_DIR / "FMEA.sysml",
-    "BilgePump_UQ": EXAMPLES_BILGEPUMP_DIR / "UQ.sysml",
 }
 
 
@@ -110,10 +109,13 @@ class TestManifestIntegrity:
     def test_minimum_counts(self):
         positive = sum(1 for a in ASSERTIONS if a["kind"] == "positive")
         negative = sum(1 for a in ASSERTIONS if a["kind"] == "negative")
-        uq = sum(1 for a in ASSERTIONS if a["kind"] == "uq")
         assert positive >= 10, f"Expected >=10 positive assertions, got {positive}"
         assert negative >= 5, f"Expected >=5  negative assertions, got {negative}"
-        assert uq >= 10, f"Expected >=10 UQ assertions, got {uq}"
+        # UQ was folded into Analysis as a single worst-case margin probe
+        # (kind="positive", id "UQ-MARGIN"); it is no longer a standalone layer.
+        assert any(a["id"] == "UQ-MARGIN" for a in ASSERTIONS), (
+            "Expected the folded UQ worst-case margin probe (id 'UQ-MARGIN')"
+        )
 
     def test_key_positive_assertions_present(self):
         """The six core BPS requirements must have positive assertions."""

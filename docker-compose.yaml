@@ -5,7 +5,7 @@
 #   docker compose -f docker-compose.yaml ... -f docker-compose.persist.yaml up  # persistent local
 services:
   sysmldb:
-    image: postgres
+    image: postgres:16
     container_name: sysml2-postgres
     ports:
       - "5432:5432"
