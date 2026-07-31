@@ -62,7 +62,7 @@ The gate **stays closed** (VerificationAgent blocked) if any of these conditions
    model_elements = load("lib/model-elements.json")
    traced_elements = load("lib/traceability.json")
    phantom = [e for e in model_elements if e not in traced_elements]
-   untraced = [e for e in traced_elements if e['source_doc'] is None]
+   untraced = [e for e in traced_elements if e["source_doc"] is None]
    ```
 
 4. Write `lib/traceability-gaps.json`:
