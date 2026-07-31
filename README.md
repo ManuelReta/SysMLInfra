@@ -363,6 +363,152 @@ uv run python /mnt/c/Users/SINKAA/Desktop/code/reactor_sys/jupyer-kernel/install
 
 
 ## Containerised sysml v2 pilot API
+To build image docker or podman 
+```
+docker build -f Dockerfile_pilot_api . --tag sysmlv2-pilot-api
+```
+```
+podman build -f Dockerfile_pilot_api . --tag sysmlv2-pilot-api
+```
+
+To build and run the pilot api with postgres container with docker/podman: 
+```
+docker compose up --build
+```
+```
+podman-compose up --build
+```
+You need podman-compose for this. 
+```
+sudo apt install podman-compose
+```
+### Certificate issue in docker container: 
+Due to the dnv proxy certificates have to be manually mounted into the container runtime. Follow instructions from here and add the env variable
+CERT_PATH=/path/to/cerfile.cert in .env file of repo. 
+
+https://sslinsights.com/pkix-path-building-failed-unable-to-find-valid-certification-path/
+
+Copy zscaler.cert from. 
+In mount this file volume into /etc/ssl/certs
+
+
+
+
+
+## Suggestions
+
+#### Specifying External Tools (to be implemented)
+The configuration for launching external tools is given in e.g. a metadata definition which is connected to an analysis def. This contains all info needed for launching an analysis job and storing data at an appropriate location. 
+
+```
+package LayeredSystem {
+
+    private import ScalarValues::Real;
+    private import ScalarValues::Boolean;
+
+    part def PumpSystem {
+
+        attribute flowRate   : Real;
+        attribute efficiency : Real;
+        attribute powerInput : Real;
+
+        attribute hydraulicPower : Real = flowRate * 1000;
+        attribute usefulPower    : Real = hydraulicPower * efficiency;
+        attribute loss           : Real = powerInput - usefulPower;
+
+        attribute isEfficient : Boolean = efficiency > 0.75;
+        attribute isSafe      : Boolean = loss >= 0 and efficiency <= 1.0;
+    }
+
+    // Requirement definitions
+    requirement def LossRequirement {
+        subject s : PumpSystem;
+        require constraint {
+            s.loss >= 0
+        }
+    }
+
+    requirement def EfficiencyRequirement {
+        subject s : PumpSystem;
+        require constraint {
+            s.efficiency >= 0.7
+        }
+    }
+
+    requirement def SafeOperation {
+        subject s : PumpSystem;
+        require constraint test {
+            s.loss >= 0 and s.efficiency <= 1.0
+        }
+    }
+
+    // System initialisation
+    part pump : PumpSystem {
+        :>> flowRate   = 0.0;
+        :>> efficiency = 0.9;
+        :>> powerInput = 1000;
+    }
+
+    // Requirement usage
+    requirement r_loss : LossRequirement {
+        subject s = pump;
+    }
+
+    requirement r_eff : EfficiencyRequirement {
+        subject s = pump;
+    }
+
+    requirement <R1> r_safe : SafeOperation {
+        
+    }
+
+    satisfy R1 by pump; 
+
+    // Metadata annotation
+    metadata def ExternalAnalysisConfig {
+      runner: String
+      repo: String
+      entrypoint: String
+      storage: String
+    }
+
+    // Analysis definition
+    analysis def some_analysis {
+        ExternalAnalysisConfig {
+          runner: some_runner
+          repo: some-organisation/some-repo@some-branch
+          storage: some-azure-blob
+        }
+
+        in some_input: Real;
+        out some_output: Real;
+    }
+
+}
+
+```
+#### Python requirements solver (to be made) (before ship and reactor model)
+- Dedicated python tool fetches analyses to be run, walks the dependency tree for constraints.
+- Queries the API (or postgres DB directly) for unsolved constraints and variables and rolls up values. 
+- Parameters from model for external analyses is sent to the backend jobs orchestrator. 
+  -  Queued, ordering matters here (some analyses may require parameters from other external analyses). How to store this? 
+
+
+#### Backend jobs orchestrator (to be made) (at some later point)
+- Backend pushes these to a DB. 
+- For kubernetes clusters: 
+  - A run orchestrator takes these. E.g. KEDA (kubernetes based). 
+  - Can run this locally on computer using e.g. minikube/kind
+- For HPCs: 
+  - A run orchestrator launches slurm jobs
+- For STC
+  - ???
+
+
+
+
+
+## Containerised sysml v2 pilot API
 
 The stack (PostgreSQL + pgAdmin + the SysML v2 pilot API) is defined as a base
 compose file plus two overlays, so the same services serve CI, local dev behind

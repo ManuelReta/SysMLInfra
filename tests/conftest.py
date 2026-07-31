@@ -11,6 +11,7 @@ import time
 
 import requests
 
+
 from dotenv import load_dotenv
 from sys_infra.environment import EXAMPLES_BILGEPUMP_DIR
 import pytest
@@ -51,16 +52,13 @@ def docker_compose(request):
         yield
         return
 
-    # Base stack is always required; behind the DNV proxy (default, no LOCAL set)
-    # the zscaler overlay is layered on top. Tests stay ephemeral — the persist
-    # overlay (named volume) is intentionally NOT included here.
-    compose_files = ["-f", "docker-compose.yaml"]
-    if not LOCAL_RUN:
-        compose_files += ["-f", "docker-compose-local.yaml"]
+    compose_file = "docker-compose.yaml" if LOCAL_RUN else "docker-compose-local.yaml"
 
-    subprocess.run(["docker", "compose", *compose_files, "up", "-d"], check=True)
+    running = ["docker", "compose", "-f", compose_file, "up", "-d"]
+
+    subprocess.run(running, check=True)
 
     wait_for_api("http://localhost:9000")
 
     yield
-    subprocess.run(["docker", "compose", *compose_files, "down"], check=True)
+    subprocess.run(["docker", "compose", "-f", compose_file, "down"], check=True)
