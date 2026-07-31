@@ -30,8 +30,9 @@
 // The publish pipeline emits one %eval per Boolean and records the verdict in
 // the `sysml_assertions` database table (see materialize_sysml_values.py).
 //
-// Negative (fault) verdicts live in FMEA.sysml; parametric-sweep verdicts in
-// UQ.sysml.  The two physics constraint defs below are reused by both layers.
+// Negative (fault) verdicts live in FMEA.sysml; the deterministic worst-case
+// margin probe (formerly the UQ.sysml layer) is folded in at the end of this
+// package. The two physics constraint defs below are reused by both.
 // =============================================================================
 
 package BilgePump_Analysis {
@@ -205,7 +206,7 @@ package BilgePump_Analysis {
     // requirement USAGE and a feature, not definitions/types).  The traceability
     // is therefore recorded here as documentation; the executable evidence is
     // the computed-Boolean verdicts above (positive), in FMEA.sysml (negative),
-    // and in UQ.sysml (parametric sweep).
+    // and the folded UQ margin probe below (deterministic worst-case).
     //
     // satisfy WaterLevelRequirement                 by BilgeWaterSensor
     // satisfy PumpRedundancyRequirement             by BilgePumpB
@@ -231,4 +232,103 @@ package BilgePump_Analysis {
     // verify  EndToEndResponseRequirement           by bpFaultToleranceVerification
     // verify  OverrideOrderingRequirement           by bpTimingVerification
     // =========================================================================
+
+    // =========================================================================
+    // CONTROL-ALLOCATION RELATIONS (Epic-1 extensibility prototype — step 2)
+    //
+    // Wire the native `allocate` construct (proven kernel-valid by the issue #9
+    // spike: `allocate bpVerification.controller to bpVerification.pumpA;`).
+    // Duty/function is allocated to the pump component(s) in the single
+    // bpVerification : BilgePumpSystem config. Mapping evidence + shortlist:
+    // docs/epic-1/requirements_mapping.py (CA bucket = 12 candidates).
+    //
+    // These are structural allocation edges, not %eval verdicts — they land in
+    // the AllocationUsage metaclass table (queryable via the REST elements API
+    // by @type), NOT in sysml_values / sysml_assertions.
+    // =========================================================================
+
+    // CA #1 (§8.1.1) redundancy duty: the dewatering control action is allocated
+    // to BOTH pumping units (>= 2 units bear the function).
+    allocate bpVerification.controller to bpVerification.pumpA;
+    allocate bpVerification.controller to bpVerification.pumpB;
+
+    // CA #3 (§8.1.1) independence: each unit is allocated its own power feed
+    // (independent drive — powerOutA / powerOutB are separate paths).
+    allocate bpVerification.power to bpVerification.pumpA;
+    allocate bpVerification.power to bpVerification.pumpB;
+
+    // CA #10 (§8.2.1) per-unit capacity duty (>= 2 m/s): primary unit allocated
+    // to the discharge line (carries the combined-capacity duty).
+    allocate bpVerification.pumpA to bpVerification.discharge;
+
+    // CA #12 (§8.2.2) apportionment (smaller/redundant unit >= 1/3 combined):
+    // the secondary unit is separately allocated its apportioned discharge duty.
+    // (The numeric >= 1/3 ratio remains a parametric bound; this edge records the
+    //  shared combined-capacity allocation of the second unit.)
+    allocate bpVerification.pumpB to bpVerification.discharge;
+
+    // =========================================================================
+    // FOLDED UQ MARGIN PROBE (was the standalone UQ.sysml layer)
+    //
+    // The former UQ layer ran a 10-point DETERMINISTIC sigma sweep as its own
+    // evaluated layer. Deterministic points are not genuine uncertainty
+    // quantification, so per the Epic-1 evaluability verdict the sweep is retired
+    // as a layer and ONE credible worst-case margin probe is folded here: the
+    // combined −3σ flow AND −3σ efficiency point (the earliest-warning case that
+    // still SATISFIES, ~1.7 % margin). It keeps the robustness signal without a
+    // separate layer.
+    //
+    // DORMANCY RULE: real (sampling-based) UQ is woken from dormancy ONLY when a
+    // system's particular rules necessitate a genuinely probabilistic discharge —
+    // i.e. when a requirement is tagged #Probabilistic (Requirements.sysml). That
+    // flag is the switch; it has 0 applications today (OFF by default). Actual
+    // Monte-Carlo / LHS sampling is Epic-2, not this deterministic probe.
+    // =========================================================================
+    attribute uqDesignInflow : Real = 0.030;
+    // Combined −3σ flow (0.019) and −3σ efficiency (0.73): netFlow ≈ 0.0305 ≥ 0.030
+    attribute UQ_MARGIN_netFlow : Real = (0.019 + 0.025) * 0.73 * (1.0 - 0.05);
+    attribute UQ_MARGIN_PROBE : Boolean = UQ_MARGIN_netFlow >= uqDesignInflow;
+
+    // =========================================================================
+    // bpSimEvidence  -- MOCK "FMU OUTPUT" RECEIVER (Epic-1 point 4, EXECUTABLE)
+    //
+    // Concept: the SysML package is assumed to RECEIVE simulation updates. A mock
+    // "FMU output" (NOT an FMU) acts as the receiver of system data from a
+    // simulation, registers it into the model, and the requirement checks below
+    // report pass/fail on the received values — on the SAME %eval path as the
+    // other verdict rows, so these are real sysml_assertions rows, not docs.
+    //
+    // Provenance: the values are the "latest simulation update" emitted by
+    // docs/epic-1/bilge_dynamics_spike.py (the bilge-well ODE) into
+    // examples/bilgepump/sim_evidence.json, transcribed here to 3 dp. That ODE
+    // CONSUMES this model's own nominals (flowRate 0.025, efficiency 0.82,
+    // pipeLoss 0.05, MARPOL 0.30), so these verdicts test THIS system — the
+    // coupling guard that separates evidence from theater.
+    //
+    // Cascade: the received simMaxLevel_m flows into SIM_LEVEL_001, which ties to
+    // the MARPOL discharge-capacity claim (BPS-REQ-004 / BPS-REQ-001). Change the
+    // received number and the verdict changes — proven by SIM_LEVEL_001_NEG,
+    // which feeds the SAME expression the UNDERSIZED-pump mock (1.167 m) and MUST
+    // evaluate false. That is the falsifiability proof, executed in the DB: the
+    // row is driven by the sim value, not hardcoded true.
+    // =========================================================================
+    part bpSimEvidence : BilgePumpSystem {
+        // --- received simulation update: nominal design (sim_evidence.json) ---
+        attribute simMaxLevel_m : Real = 0.286;          // nominal max well level
+        attribute simResponseTime_s : Real = 1.1;        // controller response time
+        attribute simFailoverMaxLevel_m : Real = 0.248;  // max level during failover phase
+        // --- falsifiability mock: undersized pump (50 % capacity) -------------
+        attribute simMaxLevel_undersized_m : Real = 1.167; // overflows MARPOL
+
+        // SIM-LEVEL-001: dynamic MARPOL check driven by the received sim level
+        //                (ties to BPS-REQ-004 / BPS-REQ-001 discharge-capacity claim)
+        attribute SIM_LEVEL_001 : Boolean = simMaxLevel_m <= 0.30;
+        // SIM-RESP-005: dynamic response-time check (ties to BPS-REQ-005)
+        attribute SIM_RESP_005 : Boolean = simResponseTime_s <= 5.0;
+        // SIM-FO-006: failover consequence check (ties to BPS-REQ-006 timing)
+        attribute SIM_FO_006 : Boolean = simFailoverMaxLevel_m <= 0.30;
+        // SIM-LEVEL-001-NEG: SAME expression, fed the undersized mock -> MUST be
+        // false. Proves SIM_LEVEL_001 is computed from the input, not a constant.
+        attribute SIM_LEVEL_001_NEG : Boolean = simMaxLevel_undersized_m <= 0.30;
+    }
 } // package BilgePump_Analysis

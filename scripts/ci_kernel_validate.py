@@ -8,7 +8,7 @@ name, or violated assertion.
 
 Two layer lists are supported in sysml-project.yml:
 
-  layers            — full list; used by --dry-run (file existence) and commit.sh.
+  layers            — full list; used by --dry-run (file existence) and commit.sh
   validation_layers — positive-test subset; used for kernel execution in CI.
                       Layers containing intentional VIOLATED assertions (negative
                       tests — e.g. FMEA.sysml, UQ.sysml) must be excluded here

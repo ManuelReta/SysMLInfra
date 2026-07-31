@@ -87,6 +87,7 @@ package BilgePump_Architecture {
         // Overboard discharge piping, strainer, and check valves
         part discharge : DischargeLine {
             attribute pipeLossFactor = 0.05; // Darcy-Weisbach λ
+            attribute marpolLimit_m = 0.30; // MARPOL 73/78 max bilge-well level
         }
 
         // Audible / visual alarm unit

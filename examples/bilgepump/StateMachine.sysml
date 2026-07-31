@@ -49,6 +49,45 @@ package BilgePump_StateMachine {
     public import BilgePump_Architecture::*;
 
     // =========================================================================
+    // Requirement→state trace (Epic-1 extensibility prototype — step 3)
+    //
+    // Trace the two genuinely temporal/behavioral DNV requirements to the states
+    // that ALREADY exist (no new states, no new behaviour):
+    //   #11 (§8.2.2 failover / degraded mode — the other unit makes up a
+    //        capacity deficiency)  → existing FAILOVER state
+    //   #21 (§8.3.3 concurrency — direct suctions usable simultaneously with the
+    //        other unit)           → existing DUAL_PUMP_ACTIVE state
+    //
+    // The Pilot kernel REJECTS `satisfy <RequirementDef> by <Type>;` and
+    // `verify <RequirementDef> by <AnalysisDef>;` (they need a requirement usage
+    // + a feature, not defs — see Analysis.sysml). This model already links to
+    // states via metadata attributes (RAAML FailureMode.stateRef, UCA.transitionRef).
+    // We follow that proven idiom: a standalone metadata usage carrying reqRef +
+    // stateRef (same shape as the #Loss usages that publish in the 9/9 run).
+    // These land in the MetadataUsage table, queryable by reqRef / stateRef.
+    // Guards stay comments (executable temporal guards are Epic-2).
+    // =========================================================================
+    metadata def RequirementStateTrace {
+        attribute reqRef   : String; // requirement id (DNV corpus shortlist #)
+        attribute stateRef : String; // existing state name traced to
+        attribute section  : String; // DNV RU-SHIP Pt.4 Ch.6 Sec.8 subsection
+        attribute rationale : String;
+    }
+
+    #RequirementStateTrace {
+        reqRef    = "REQ-11";
+        stateRef  = "FAILOVER";
+        section   = "8.2.2";
+        rationale = "failover / degraded mode — the other unit makes up a capacity deficiency";
+    }
+    #RequirementStateTrace {
+        reqRef    = "REQ-21";
+        stateRef  = "DUAL_PUMP_ACTIVE";
+        section   = "8.3.3";
+        rationale = "concurrency — direct suctions usable simultaneously with the other unit";
+    }
+
+    // =========================================================================
     // PumpControllerBehavior
     // Sub-state machine for the PumpController component.
     // Exhibited by: controller : PumpController (Architecture.sysml)

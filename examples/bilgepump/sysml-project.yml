@@ -6,7 +6,8 @@
 #   layers            — COMPLETE layer list in strict import order.
 #                       Used by commit.sh (POST to API) and ci_kernel_validate.py
 #                       --dry-run (file-existence check).
-#                       Imported-by-nothing must come first (RAAML has no imports).
+#                       Imported-by-nothing must come first (Library has no
+#                       intra-model imports).
 #
 #   validation_layers — POSITIVE-TEST subset for kernel execution in CI.
 #                       Used by ci_kernel_validate.py (full kernel run).
@@ -36,26 +37,26 @@ publish_root: BilgePump
 # executed verdicts can be materialized into the `sysml_assertions` table.
 assertions_module: bilgepump_assertions
 
-# All 9 layers — full model including safety, FMEA, UQ, and state machine extensions.
+# Layers — RAAML folded into Requirements.sysml (render-only provenance) and UQ
+# folded into Analysis.sysml (deterministic worst-case margin probe); both are
+# no longer standalone layers. Requirements now defines the RAAML stereotypes and
+# is loaded before Safety/FMEA, so import order stays valid without a RAAML-first
+# entry. Adding a new layer below is folded into the umbrella automatically.
 layers:
-  - RAAML.sysml
   - Library.sysml
   - Architecture.sysml
   - Requirements.sysml
   - Analysis.sysml
   - Safety.sysml
   - FMEA.sysml
-  - UQ.sysml
   - StateMachine.sysml
 
 # Positive-test subset for kernel CI execution.
 # FMEA.sysml: contains 4 negative-test analysis defs — designed to produce
 #             VIOLATED assertions (FM-S-001, FM-PA-002, FM-PB-001, FM-C-001).
-# UQ.sysml:   UQ_Sweep_10 (combined 3σ extreme) produces a VIOLATED assertion
-#             by design. Both files are syntax-validated via --dry-run.
+#             Excluded from the positive subset; syntax-validated via --dry-run.
 # StateMachine.sysml: no VIOLATED assertions; included in validation.
 validation_layers:
-  - RAAML.sysml
   - Library.sysml
   - Architecture.sysml
   - Requirements.sysml

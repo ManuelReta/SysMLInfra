@@ -47,7 +47,6 @@ from __future__ import annotations
 
 ANALYSIS = "BilgePump_Analysis"
 FMEA = "BilgePump_FMEA"
-UQ = "BilgePump_UQ"
 
 
 def _a(id, fqn, layer, requirement, kind, expected, note):
@@ -274,21 +273,56 @@ ASSERTIONS: list[dict] = [
         False,
         "Failover not triggered -> no discharge",
     ),
-    # ---- UQ: deterministic sigma-step sweep (1-9 SATISFIED, 10 VIOLATED) -----
-    *[
-        _a(
-            f"UQ-SWEEP-{i:02d}",
-            f"{UQ}::UQ_Sweep_{i:02d}",
-            "UQ",
-            f"UQ-{i:02d}",
-            "uq",
-            i != 10,
-            "Combined 3-sigma extreme -> discharge < inflow"
-            if i == 10
-            else "Parametric sweep point -> discharge >= inflow",
-        )
-        for i in range(1, 11)
-    ],
+    # ---- UQ: folded deterministic worst-case margin probe (was UQ.sysml) -----
+    _a(
+        "UQ-MARGIN",
+        f"{ANALYSIS}::UQ_MARGIN_PROBE",
+        "Analysis",
+        "BPS-REQ-004",
+        "positive",
+        True,
+        "Combined -3sigma flow+efficiency worst-case still >= inflow (~1.7% margin)",
+    ),
+    # ---- SIM: mock-FMU output receiver -> evaluable requirement checks --------
+    # Values received from bilge_dynamics_spike ODE via sim_evidence.json. The
+    # received number drives each verdict on the same %eval path as the rows
+    # above; SIM-LEVEL-001-NEG proves falsifiability (undersized mock flips it).
+    _a(
+        "SIM-LEVEL-001",
+        f"{ANALYSIS}::bpSimEvidence.SIM_LEVEL_001",
+        "Analysis",
+        "BPS-REQ-004",
+        "positive",
+        True,
+        "Received sim max level <= 0.30 m (dynamic MARPOL; BPS-REQ-004/001)",
+    ),
+    _a(
+        "SIM-RESP-005",
+        f"{ANALYSIS}::bpSimEvidence.SIM_RESP_005",
+        "Analysis",
+        "BPS-REQ-005",
+        "positive",
+        True,
+        "Received sim response time <= 5.0 s (dynamic BPS-REQ-005)",
+    ),
+    _a(
+        "SIM-FO-006",
+        f"{ANALYSIS}::bpSimEvidence.SIM_FO_006",
+        "Analysis",
+        "BPS-REQ-006",
+        "positive",
+        True,
+        "Received failover-phase max level <= 0.30 m (dynamic BPS-REQ-006)",
+    ),
+    _a(
+        "SIM-LEVEL-001-NEG",
+        f"{ANALYSIS}::bpSimEvidence.SIM_LEVEL_001_NEG",
+        "Analysis",
+        "BPS-REQ-004",
+        "negative",
+        False,
+        "Falsifiability: undersized-pump sim level (1.167 m) flips MARPOL check VIOLATED",
+    ),
 ]
 
 
