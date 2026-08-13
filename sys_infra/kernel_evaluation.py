@@ -14,6 +14,8 @@ from sys_infra.utils import (
 )
 import nbformat
 
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
 
 class Pipeline:
     def __init__(
@@ -54,18 +56,19 @@ class Pipeline:
 
     def _construct_evaluateble_expressions(self) -> list[str]:
         all_commands: list[str] = []
-
+        req_defs: dict[str, str] = {}
         for layer in self.all_layers:
             with open(self.project_dir / layer, "r") as f:
                 text = f.read()
 
-            package, req_usages, parts = parse_sysml(text)
+            package, req_usages, parts, new_req_defs = parse_sysml(text, req_defs)
             commands = generate_eval_commands(package, req_usages, parts)
             all_commands += commands
+            req_defs.update(new_req_defs)
 
-        print("Generated %eval commands:\n")
+        logging.info("Generated %eval commands:\n")
         for c in all_commands:
-            print(c)
+            logging.info(f" {c}")
         return all_commands
 
     def _evaluate_expressions(self, expressions, nb) -> list[dict[Any, Any]]:
@@ -87,15 +90,27 @@ class Pipeline:
     def _store_results(self, results):
         for result in results:
             requirement = result["in"]
-            text = result["out"][0]["data"]["text/plain"]
-            match_found = bool(re.search(r"\btrue\b", text))
-            logging.info(f"Requirement {requirement}: {match_found}")
+
+            if "%eval" not in requirement:
+                continue
+
+            if len(result["out"]) == 0:
+                logging.warning(f"No output for {requirement}")
+                continue
+
+            text = result["out"][-1]["data"]["text/plain"]
+
+            match_found = bool(re.search(r"\btrue\b", text, re.IGNORECASE))
+
+            logging.info(
+                f"Requirement: {requirement} | "
+                f"Output: {text.strip()} | "
+                f"Passed: {match_found}"
+            )
 
 
 if __name__ == "__main__":
-    p = Pipeline(
-        Path(
-            "/mnt/c/Users/SINKAA/Desktop/code/mons_wp1/SysMLInfra/tests/sys_infra/test_models/layered_simple_pump/build/LayeredTestModel_0.0.1"
-        )
-    )
-    p()
+    # "/mnt/c/Users/SINKAA/Desktop/code/mons_wp1/SysMLInfra/tests/sys_infra/test_models/layered_simple_pump"
+
+    p = Pipeline(Path("/mnt/c/Users/SINKAA/Desktop/code/mons_wp1/ship_coefficients"))
+    p(publish=False)
