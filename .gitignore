@@ -26,3 +26,6 @@ __pycache__/
 ./venv/
 .env
 deps/
+
+# Generated immutable packages, locks, observations, and evidence from SoS MVP.
+examples/system-of-systems/runtime-mvp/output/

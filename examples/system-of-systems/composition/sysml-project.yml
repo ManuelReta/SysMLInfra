@@ -1,0 +1,28 @@
+name: VesselDrainageSoS
+version: 0.2.0
+description: "Composition-only assurance model over three independently versioned constituent contracts"
+publish_root: VesselDrainageSoS
+assertions_module: assertions
+
+# Constituent source layers load first but remain independently publishable projects.
+layers:
+  - ../pumping-unit/Library.sysml
+  - ../pumping-unit/Architecture.sysml
+  - ../pumping-unit/Requirements.sysml
+  - ../pumping-unit/Analysis.sysml
+  - ../piping-network/Library.sysml
+  - ../piping-network/Architecture.sysml
+  - ../piping-network/Requirements.sysml
+  - ../piping-network/Analysis.sysml
+  - ../well-monitoring/Library.sysml
+  - ../well-monitoring/Architecture.sysml
+  - ../well-monitoring/Requirements.sysml
+  - ../well-monitoring/Analysis.sysml
+  - Architecture.sysml
+  - Requirements.sysml
+  - Analysis.sysml
+
+validation_layers:
+  - Architecture.sysml
+  - Requirements.sysml
+  - Analysis.sysml
