@@ -1,0 +1,17 @@
+name: WellMonitoringSubsystem
+version: 0.9.0
+description: "Independent bilge-well and monitoring contract derived from DNV-RU-SHIP Pt.4 Ch.6 Sec.4"
+publish_root: WellMonitoringSubsystem
+assertions_module: assertions
+
+layers:
+  - Library.sysml
+  - Architecture.sysml
+  - Requirements.sysml
+  - Analysis.sysml
+
+validation_layers:
+  - Library.sysml
+  - Architecture.sysml
+  - Requirements.sysml
+  - Analysis.sysml

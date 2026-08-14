@@ -1,0 +1,18 @@
+{
+    "name": "WellMonitoringSubsystem",
+    "version": "0.9.0",
+    "project_dir": "../../well-monitoring",
+    "source_files": [
+        "Library.sysml",
+        "Architecture.sysml",
+        "Requirements.sysml",
+        "Analysis.sysml",
+        "assertions.py",
+        "sysml-project.yml"
+    ],
+    "exports": {
+        "requiredDrainageCapacity_m3h": 90.0,
+        "outletAvailable": true,
+        "operatorFeedbackAvailable": true
+    }
+}
