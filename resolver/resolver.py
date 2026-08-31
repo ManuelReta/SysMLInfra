@@ -5,7 +5,9 @@ import subprocess
 from typing import Any
 import logging
 import yaml
+import typer
 
+app = typer.Typer(help="SysML dependency resolver and package builder.")
 DEPS_DIR = "deps"
 
 
@@ -160,7 +162,7 @@ class PackageStructure:
         self.DEPS_DIR = project_dir / self.dependecy_dir
 
 
-def main():
+def example():
     project_dir = Path(
         "/mnt/c/Users/SINKAA/Desktop/code/mons_wp1/SysMLInfra/tests/sys_infra/test_models/layered_simple_pump"
     )
@@ -169,5 +171,27 @@ def main():
     resolver()
 
 
+@app.command()
+def resolver(
+    project_dir: Path = typer.Argument(
+        ...,
+        exists=True,
+        file_okay=False,
+        dir_okay=True,
+        help="Path to the SysML project directory.",
+    ),
+):
+    """
+    Resolve dependencies and build a package.
+    """
+    resolver = Resolver(project_dir=project_dir)
+    resolver()
+
+    typer.secho(
+        f"Successfully resolved project: {project_dir} into {project_dir / 'build'}",
+        fg=typer.colors.GREEN,
+    )
+
+
 if __name__ == "__main__":
-    main()
+    app()

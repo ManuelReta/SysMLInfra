@@ -1,12 +1,13 @@
 import re
-
 from pathlib import Path
 from typing import Any
 import logging
+from sys_infra.formal_analysis.z3_analysis import Z3SolverParser
+from sys_infra.parsing.sysml_v2_parser import ParseSysml
+
 from sys_infra.utils import (
     SysMLProjectReader,
     generate_eval_commands,
-    parse_sysml,
     run_kernel_publish,
     kernel_evaluate,
     append_kernel_layers,
@@ -15,6 +16,11 @@ from sys_infra.utils import (
 import nbformat
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
+
+def read_sysml_file(file_path: Path) -> str:
+    with open(file_path, "r") as f:
+        return f.read()
 
 
 class Pipeline:
@@ -33,13 +39,18 @@ class Pipeline:
             raise ValueError("Kernel not found")
 
     def __call__(self, publish: bool = False) -> list[dict[Any, Any]]:
-        expressions = self._construct_evaluateble_expressions()
+        expressions, constraint_defs = self._construct_evaluateble_expressions(
+            all_layers=self.all_layers, project_dir=self.project_dir
+        )
         self.nb = self._get_kernel()
         self.nb = append_kernel_layers(
             layer_paths=[self.project_dir / layer for layer in self.all_layers],
             nb=self.nb,
         )
         results = self._evaluate_expressions(expressions=expressions, nb=self.nb)
+
+        self._run_z3_analysis(constraint_defs)
+
         if publish:
             self._publish_to_api()
         self._store_results(results=results)
@@ -54,22 +65,45 @@ class Pipeline:
         }
         return nb
 
-    def _construct_evaluateble_expressions(self) -> list[str]:
+    @staticmethod
+    def _construct_evaluateble_expressions(
+        all_layers, project_dir
+    ) -> tuple[list[str], dict[str, Any]]:
         all_commands: list[str] = []
         req_defs: dict[str, str] = {}
-        for layer in self.all_layers:
-            with open(self.project_dir / layer, "r") as f:
-                text = f.read()
+        constraint_defs: dict[str, Any] = {}
 
-            package, req_usages, parts, new_req_defs = parse_sysml(text, req_defs)
-            commands = generate_eval_commands(package, req_usages, parts)
-            all_commands += commands
-            req_defs.update(new_req_defs)
+        for layer in all_layers:
+            text = read_sysml_file(project_dir / layer)
 
-        logging.info("Generated %eval commands:\n")
-        for c in all_commands:
-            logging.info(f" {c}")
-        return all_commands
+            model = ParseSysml()(text, req_defs)
+
+            commands = generate_eval_commands(
+                model.package,
+                model.req_usages,
+                model.parts,
+            )
+
+            all_commands.extend(commands)
+            req_defs.update(model.req_defs)
+            constraint_defs.update(model.constraint_defs)
+
+        logging.info("Generated %%eval commands:")
+        for cmd in all_commands:
+            logging.info(f"     {cmd}")
+
+        return all_commands, constraint_defs
+
+    @staticmethod
+    def _run_z3_analysis(constraint_defs: dict[str, Any]) -> None:
+        solver = Z3SolverParser()
+
+        for name, constraint_def in constraint_defs.items():
+            logging.info(f"Adding constraint {name}")
+            solver.add_constraint(constraint_def)
+
+        solver.add_values({})
+        solver.check_constraints()
 
     def _evaluate_expressions(self, expressions, nb) -> list[dict[Any, Any]]:
         if self.kernel_name is None:
@@ -88,6 +122,7 @@ class Pipeline:
         )
 
     def _store_results(self, results):
+        logging.info("Evaluation Results:")
         for result in results:
             requirement = result["in"]
 
@@ -103,9 +138,9 @@ class Pipeline:
             match_found = bool(re.search(r"\btrue\b", text, re.IGNORECASE))
 
             logging.info(
-                f"Requirement: {requirement} | "
-                f"Output: {text.strip()} | "
-                f"Passed: {match_found}"
+                f"      Requirement: {requirement} | "
+                f"      Output: {text.strip()} | "
+                f"      Passed: {match_found}"
             )
 
 
