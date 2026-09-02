@@ -54,7 +54,45 @@ class Pipeline:
         if publish:
             self._publish_to_api()
         self._store_results(results=results)
+        self.values = self._parse_evaluated_expressions(results=results)
         return results
+
+    def _parse_evaluated_expressions(self, results: list[dict[Any, Any]]) -> dict[str, bool]:
+        import re
+
+        values = {}
+
+        for cell in results:
+            inp = cell.get("in", "")
+
+            if not inp.startswith("%eval "):
+                continue
+
+            expr = inp.replace("%eval ", "").strip()
+
+            for output in cell.get("out", []):
+                text = output.get("data", {}).get("text/plain", "")
+
+                m = re.search(
+                    r"Literal(Integer|Real|Boolean)\s+([^\s]+)",
+                    text
+                )
+
+                if m:
+                    value_type = m.group(1)
+                    value = m.group(2)
+
+                    # convert to Python types
+                    if value_type == "Integer":
+                        value = int(value)
+                    elif value_type == "Real":
+                        value = float(value)
+                    elif value_type == "Boolean":
+                        value = value.lower() == "true"
+
+                    values[expr] = value
+
+        return values
 
     def _get_kernel(self):
         nb = nbformat.v4.new_notebook()
@@ -147,5 +185,7 @@ class Pipeline:
 if __name__ == "__main__":
     # "/mnt/c/Users/SINKAA/Desktop/code/mons_wp1/SysMLInfra/tests/sys_infra/test_models/layered_simple_pump"
 
-    p = Pipeline(Path("/mnt/c/Users/SINKAA/Desktop/code/mons_wp1/ship_coefficients"))
+    # p = Pipeline(Path("/mnt/c/Users/SINKAA/Desktop/code/mons_wp1/ship_coefficients"))
+
+    p = Pipeline(Path("/home/sinkaa/code/mons_wp1/ship_model"))
     p(publish=False)
