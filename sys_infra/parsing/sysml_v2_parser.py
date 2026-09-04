@@ -4,6 +4,225 @@ from dataclasses import dataclass, field
 
 
 @dataclass
+class PartDefinition:
+    name: str
+    attributes: set[str] = field(default_factory=set)
+
+
+@dataclass
+class PartUsage:
+    name: str
+    type_name: str | None = None
+    values: dict[str, object] = field(default_factory=dict)
+
+
+@dataclass
+class AstModel:
+    package: str
+    part_defs: dict[str, PartDefinition]
+    parts: dict[str, PartUsage]
+    catalog: dict[str, object]
+
+
+class ParseSysMLAst:
+
+    def parse(self, text: str) -> AstModel:
+
+        lines = text.splitlines()
+
+        # --------------------------------------------------
+        # Package
+        # --------------------------------------------------
+
+        package = "Unknown"
+
+        for line in lines:
+            m = re.match(r"Package\s+(\w+)", line.strip())
+            if m:
+                package = m.group(1)
+                break
+
+        # --------------------------------------------------
+        # Storage
+        # --------------------------------------------------
+
+        part_defs = {}
+        parts = {}
+
+        current_part_def = None
+        current_part_usage = None
+        current_reference = None
+
+        # --------------------------------------------------
+        # Parse
+        # --------------------------------------------------
+
+        for line in lines:
+
+            line = line.strip()
+
+            # ----------------------------------------------
+            # PartDefinition
+            # ----------------------------------------------
+
+            m = re.search(
+                r"\[OwningMembership\]\s+PartDefinition\s+(\w+)",
+                line,
+            )
+
+            if m:
+                name = m.group(1)
+
+                current_part_def = PartDefinition(name=name)
+                part_defs[name] = current_part_def
+
+                current_part_usage = None
+                current_reference = None
+                continue
+
+            # ----------------------------------------------
+            # PartUsage
+            # ----------------------------------------------
+
+            m = re.search(
+                r"\[OwningMembership\]\s+PartUsage\s+(\w+)",
+                line,
+            )
+
+            if m:
+                name = m.group(1)
+
+                current_part_usage = PartUsage(name=name)
+                parts[name] = current_part_usage
+
+                current_part_def = None
+                current_reference = None
+                continue
+
+            # ----------------------------------------------
+            # Attributes inside PartDefinition
+            # ----------------------------------------------
+
+            if current_part_def is not None:
+
+                m = re.search(
+                    r"\[FeatureMembership\]\s+AttributeUsage\s+(\w+)",
+                    line,
+                )
+
+                if m:
+                    current_part_def.attributes.add(
+                        m.group(1)
+                    )
+                    continue
+
+            # ----------------------------------------------
+            # Type of PartUsage
+            # ----------------------------------------------
+
+            if current_part_usage is not None:
+
+                m = re.search(
+                    r"\[FeatureTyping\]\s+PartDefinition\s+(\w+)",
+                    line,
+                )
+
+                if m:
+                    current_part_usage.type_name = m.group(1)
+                    continue
+
+            # ----------------------------------------------
+            # ReferenceUsage
+            # ----------------------------------------------
+
+            if current_part_usage is not None:
+
+                m = re.search(
+                    r"\[FeatureMembership\]\s+ReferenceUsage\s+(\w+)",
+                    line,
+                )
+
+                if m:
+                    current_reference = m.group(1)
+                    continue
+
+            # ----------------------------------------------
+            # Integer value
+            # ----------------------------------------------
+
+            if (
+                current_part_usage is not None
+                and current_reference is not None
+            ):
+
+                m = re.search(
+                    r"LiteralInteger\s+(-?\d+)",
+                    line,
+                )
+
+                if m:
+                    current_part_usage.values[
+                        current_reference
+                    ] = int(m.group(1))
+
+                    current_reference = None
+                    continue
+
+            # ----------------------------------------------
+            # Real value
+            # ----------------------------------------------
+
+            if (
+                current_part_usage is not None
+                and current_reference is not None
+            ):
+
+                m = re.search(
+                    r"LiteralReal\s+(-?\d+(?:\.\d+)?)",
+                    line,
+                )
+
+                if m:
+                    current_part_usage.values[
+                        current_reference
+                    ] = float(m.group(1))
+
+                    current_reference = None
+                    continue
+
+        # --------------------------------------------------
+        # Build catalog
+        # --------------------------------------------------
+
+        catalog = {}
+
+        for part_name, part_usage in parts.items():
+
+            if not part_usage.type_name:
+                continue
+
+            if part_usage.type_name not in part_defs:
+                continue
+
+            part_def = part_defs[part_usage.type_name]
+
+            for attr in sorted(part_def.attributes):
+
+                fqn = f"{package}::{part_name}.{attr}"
+
+                catalog[fqn] = part_usage.values.get(
+                    attr,
+                    None,
+                )
+
+        return AstModel(
+            package=package,
+            part_defs=part_defs,
+            parts=parts,
+            catalog=catalog,
+        )
+
+@dataclass
 class SysMLConstraint:
     name: str
     inputs: dict[str, str]
@@ -117,26 +336,76 @@ class ParseSysml:
             }
 
         return constraints
-
+    """
     def parse_parts(self, text: str, parts={}) -> dict[str, list[str]]:
-        # -------------------------------------------------------
-        # Parts
-        # -------------------------------------------------------
-        for match in re.finditer(
-            r"part\s+(\w+)\s*:\s*(\w+)\s*{([^}]*)}",
-            text,
-            re.DOTALL,
-        ):
-            part_name = match.group(1)
-            body = match.group(3)
+            # -------------------------------------------------------
+            # Parts
+            # -------------------------------------------------------
+            for match in re.finditer(
+                r"part\s+(\w+)\s*:\s*(\w+)\s*{([^}]*)}",
+                text,
+                re.DOTALL,
+            ):
+                part_name = match.group(1)
+                body = match.group(3)
 
-            attributes = re.findall(
-                r":>>\s*(\w+)",
-                body,
+                attributes = re.findall(
+                    r":>>\s*(\w+)",
+                    body,
+                )
+
+                parts[part_name] = attributes
+            return parts """
+
+
+    def parse_parts(self, text: str, parts=None) -> dict[str, list[str]]:
+        if parts is None:
+            parts = {}
+
+        part_start_re = re.compile(
+            r"part\s+(?!def\b)(\w+)\s*:\s*(\w+)\s*{",
+            re.DOTALL,
+        )
+
+        for match in part_start_re.finditer(text):
+            part_name = match.group(1)
+
+            start = match.end()
+
+            depth = 1
+            pos = start
+
+            while pos < len(text) and depth > 0:
+                if text[pos] == "{":
+                    depth += 1
+                elif text[pos] == "}":
+                    depth -= 1
+                pos += 1
+
+            body = text[start:pos - 1]
+
+            attributes = []
+
+            # Original :>> syntax
+            attributes.extend(
+                re.findall(
+                    r":>>\s*([A-Za-z_]\w*)",
+                    body,
+                )
             )
 
-            parts[part_name] = attributes
+            # Qualified references
+            attributes.extend(
+                re.findall(
+                    r"[A-Za-z_]\w*(?:(?:::|\.)[A-Za-z_]\w*)+",
+                    body,
+                )
+            )
+
+            parts[part_name] = sorted(set(attributes))
+
         return parts
+
 
     def parse_attributes(self, text: str, attributes={}) -> dict[str, str]:
         # -------------------------------------------------------
@@ -198,6 +467,8 @@ class ParseSysml:
         logging.info(f"Parsing SysML text for package: {package}")
 
         req_defs = self.parse_requirement_defs(text=text, req_defs=existing_req_defs)
+        if len(req_defs) > len(existing_req_defs):
+            logging.info(f"Found {len(req_defs) - len(existing_req_defs)} new requirement definitions:")
         req_usages = self.parse_requirements(
             text=text, req_defs=req_defs, req_usages=[]
         )

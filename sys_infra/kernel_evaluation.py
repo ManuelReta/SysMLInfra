@@ -2,9 +2,9 @@ import re
 from pathlib import Path
 from typing import Any
 import logging
-from sys_infra.formal_analysis.z3_analysis import Z3SolverParser
-from sys_infra.parsing.sysml_v2_parser import ParseSysml
 
+from sys_infra.formal_analysis.z3_analysis import Z3SolverParser
+from sys_infra.parsing.sysml_v2_parser import ParseSysMLAst, ParseSysml
 from sys_infra.utils import (
     SysMLProjectReader,
     generate_eval_commands,
@@ -58,8 +58,6 @@ class Pipeline:
         return results
 
     def _parse_evaluated_expressions(self, results: list[dict[Any, Any]]) -> dict[str, bool]:
-        import re
-
         values = {}
 
         for cell in results:
@@ -74,7 +72,7 @@ class Pipeline:
                 text = output.get("data", {}).get("text/plain", "")
 
                 m = re.search(
-                    r"Literal(Integer|Real|Boolean)\s+([^\s]+)",
+                    r"Literal(Integer|Real|Boolean|Rational)\s+([^\s]+)",
                     text
                 )
 
@@ -82,13 +80,14 @@ class Pipeline:
                     value_type = m.group(1)
                     value = m.group(2)
 
-                    # convert to Python types
                     if value_type == "Integer":
                         value = int(value)
                     elif value_type == "Real":
                         value = float(value)
                     elif value_type == "Boolean":
                         value = value.lower() == "true"
+                    elif value_type == "Rational":
+                        value = float(value)
 
                     values[expr] = value
 
@@ -103,34 +102,58 @@ class Pipeline:
         }
         return nb
 
-    @staticmethod
-    def _construct_evaluateble_expressions(
+
+    def _construct_evaluateble_expressions(self,
         all_layers, project_dir
     ) -> tuple[list[str], dict[str, Any]]:
         all_commands: list[str] = []
         req_defs: dict[str, str] = {}
         constraint_defs: dict[str, Any] = {}
-
+        self.nb = self._get_kernel()
+        self.nb = append_kernel_layers(
+            layer_paths=[self.project_dir / layer for layer in self.all_layers],
+            nb=self.nb,
+        )
+        show_expressions = []
         for layer in all_layers:
+            logging.info(f"Processing layer: {layer}")
+            if str(layer) == "/home/sinkaa/code/mons_wp1/ship_model/Architecture.sysml":
+                logging.info(f"Skipping layer: {layer}")
             text = read_sysml_file(project_dir / layer)
 
+            # model = parser.parse(text)
             model = ParseSysml()(text, req_defs)
+            show_expressions.append(f"%show {model.package}")
 
-            commands = generate_eval_commands(
-                model.package,
-                model.req_usages,
-                model.parts,
-            )
+        results = kernel_evaluate(
+            expressions=show_expressions,
+            kernel_name=self.kernel_name,
+            project_dir=self.project_dir,
+            nb=self.nb,
+        )
 
-            all_commands.extend(commands)
-            req_defs.update(model.req_defs)
-            constraint_defs.update(model.constraint_defs)
+        package_asts = {}
+        for result in results:
+            if not result["in"].startswith("%show"):
+                continue
+            if not result["out"]:
+                continue
+            output = result["out"][0]
+            ast_text = output["data"]["text/plain"]
+            model = ParseSysMLAst().parse(ast_text)
+            package_asts[model.package] = model
+
+        eval_params = []
+
+        for model in package_asts.values():
+            for param in model.catalog:
+                eval_params.append(f"%eval {param}")
 
         logging.info("Generated %%eval commands:")
-        for cmd in all_commands:
+        for cmd in eval_params:
             logging.info(f"     {cmd}")
 
-        return all_commands, constraint_defs
+        return eval_params, constraint_defs
 
     @staticmethod
     def _run_z3_analysis(constraint_defs: dict[str, Any]) -> None:
@@ -184,7 +207,6 @@ class Pipeline:
 
 if __name__ == "__main__":
     # "/mnt/c/Users/SINKAA/Desktop/code/mons_wp1/SysMLInfra/tests/sys_infra/test_models/layered_simple_pump"
-
     # p = Pipeline(Path("/mnt/c/Users/SINKAA/Desktop/code/mons_wp1/ship_coefficients"))
 
     p = Pipeline(Path("/home/sinkaa/code/mons_wp1/ship_model"))
