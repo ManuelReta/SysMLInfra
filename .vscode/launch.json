@@ -1,0 +1,54 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "ditto_sensor",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "ditto_wrapper.sensor"
+        },
+        {
+            "name": "commit",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "sys_infra.commit"
+        },
+        {
+            "name": "pipeline",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "sys_infra.kernel_evaluation"
+        },
+        {
+            "name": "resolver",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "resolver.resolver"
+        },
+        {
+            "name": "utils",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "sys_infra.utils"
+        },
+        {
+            "name": "verify",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "sys_infra.verify"
+        },
+        {
+            "name": "entry verify",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "sys_infra.entry",
+            "args": [
+                "verify",
+                "--fallback"
+            ]
+        }
+    ]
+}

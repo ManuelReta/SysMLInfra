@@ -1,3 +1,4 @@
+import logging
 import os
 from pathlib import Path
 import sys
@@ -385,21 +386,44 @@ def kernel_evaluate(
     return cell_results
 
 
-def parse_sysml(text):
+def parse_sysml(text, existing_req_defs):
     package_match = re.search(r"package\s+(\w+)", text)
     package = package_match.group(1) if package_match else "Unknown"
 
+    logging.info(f"Parsing SysML text for package: {package}")
     # ---------------------------
     # Parse requirement definitions
     # ---------------------------
-    req_defs = {}
+    req_defs = existing_req_defs  # {}
     for match in re.finditer(r"requirement\s+def\s+(\w+)\s*{([^}]*)}", text, re.DOTALL):
         name = match.group(1)
         body = match.group(2)
 
-        # find "attribute req"
+        # Unsupported SysML feature
+        if re.search(r"require\s+constraint\s*{", body):
+            logging.error(
+                f"ERROR: Requirement '{name}' contains a "
+                f"'require constraint' block. "
+                f"This construct is not interpretable by the current kernel."
+            )
+            continue
+
+        attr_block_match = re.search(r"attribute\s+(\w+)\s*:\s*Boolean\s*{", body)
+
+        if attr_block_match:
+            logging.info(
+                f"Requirement '{name}' defines Boolean attribute "
+                f"'{attr_block_match.group(1)}' using a block '{{...}}'. "
+                f"This is not supported by the kernel. Use "
+                f"'attribute {attr_block_match.group(1)}: Boolean = <expression>;' instead."
+            )
+            continue
+
         attr_match = re.search(r"attribute\s+(\w+)\s*:", body)
         if attr_match:
+            logging.info(
+                f"     Requirement '{name}' defines attribute '{attr_match.group(1)}'."
+            )
             req_defs[name] = attr_match.group(1)
 
     # ---------------------------
@@ -429,7 +453,11 @@ def parse_sysml(text):
         attributes = re.findall(r":>>\s*(\w+)", body)
         parts[part_name] = attributes
 
-    return package, req_usages, parts
+    logging.info(f"     Parsed requirement definitions: {req_defs}")
+    logging.info(f"     Parsed requirement usages: {req_usages}")
+    logging.info(f"     Parsed part definitions: {parts}")
+
+    return package, req_usages, parts, req_defs
 
 
 def generate_eval_commands(package, req_usages, parts):
